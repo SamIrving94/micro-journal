@@ -1,25 +1,9 @@
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  createdAt: string;
-}
-
+// In src/types/api.ts
 export interface JournalEntry {
   id: string;
   content: string;
   createdAt: string;
   updatedAt: string;
   userId: string;
+  tags?: string[];
 }
-
-export interface UserPreferences {
-  promptTime: string;
-  timezone: string;
-  promptCategories: string[];
-  notificationPreferences: {
-    platform: 'whatsapp';
-    reminders: boolean;
-    weeklyDigest: boolean;
-  };
-} 

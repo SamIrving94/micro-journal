@@ -1,20 +1,23 @@
+'use client'
+
+import React from 'react'
 import { redirect } from 'next/navigation'
 
-export default async function Home() {
-  // You can add authentication check here
+export default function Home() {
   const isAuthenticated = false // Replace with your actual auth check
-  
+  const hasCompletedOnboarding = false // Replace with your actual onboarding check
+
   if (!isAuthenticated) {
     redirect('/auth/signup')
   }
 
-  // If authenticated, check if onboarding is completed
-  const hasCompletedOnboarding = false // Replace with your actual onboarding check
-  
   if (!hasCompletedOnboarding) {
-    redirect('/journal/onboarding')
+    redirect('/onboarding')
   }
 
-  // If both authenticated and onboarded, redirect to main journal
   redirect('/journal')
+
+  // This code will never be reached due to redirects
+  return null
 }
+

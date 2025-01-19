@@ -4,15 +4,15 @@
 
 :root {
   --foreground: #171717;
-  --background: #ffffff;
+  --background: #faf7f5;
   --orange-600: #ea580c;
   --orange-700: #c2410c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --foreground: #ededed;
-    --background: #0a0a0a;
+    --foreground: #171717;
+    --background: #f5efe9;
   }
 }
 
@@ -30,5 +30,19 @@ body {
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+@layer components {
+  .journal-card {
+    @apply bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow;
+  }
+  
+  .journal-input {
+    @apply w-full p-4 rounded-lg border border-clay-200 focus:ring-2 focus:ring-orange-600 focus:border-transparent;
+  }
+  
+  .tag-pill {
+    @apply px-3 py-1 rounded-full text-sm bg-clay-100 text-clay-500;
   }
 }
