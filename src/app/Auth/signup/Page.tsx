@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Phone, Clock, Calendar } from 'lucide-react';
+import { Phone, Mail, Clock, Calendar } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { sendWhatsAppMessage } from '@/lib/twilio';
+import { Button } from '@/app/components/ui/atoms/Button';
+import { Input } from '@/app/components/ui/atoms/Input';
 
 type SignupStep = 'phone' | 'verification' | 'preferences';
 
@@ -14,7 +18,11 @@ interface UserPreferences {
 function SignupPage() {
   const [step, setStep] = useState<SignupStep>('phone');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
   const [verificationCode, setVerificationCode] = useState<string>('');
+  const [expectedCode, setExpectedCode] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string>('');
   const [preferences, setPreferences] = useState<UserPreferences>({
     journalTime: '20:00',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -22,16 +30,155 @@ function SignupPage() {
 
   const router = useRouter();
 
-  const handlePhoneSubmit = () => {
-    setStep('verification');
+  const handlePhoneSubmit = async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      if (!email || !email.includes('@')) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      // Generate a 6-digit code
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setExpectedCode(code);
+
+      // Send verification message via Twilio WhatsApp
+      const response = await sendWhatsAppMessage(
+        phoneNumber,
+        `Your MicroJournal verification code is: ${code}`
+      );
+
+      if (response.status === 'failed') {
+        throw new Error(response.errorMessage || 'Failed to send verification code');
+      }
+
+      // Move to verification step
+      setStep('verification');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send verification code');
+      console.error('Error sending verification:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleVerification = () => {
-    setStep('preferences');
+  const handleVerification = async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      // Debug logs
+      console.log('Entered code:', verificationCode);
+      console.log('Expected code:', expectedCode);
+      
+      // Verify the code (ensure string comparison)
+      if (verificationCode.toString() !== expectedCode.toString()) {
+        console.log('Code mismatch');
+        throw new Error('Invalid verification code');
+      }
+
+      console.log('Code verified successfully');
+      
+      // Try to sign in first (in case user is returning after email confirmation)
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: verificationCode,
+      });
+
+      // If sign in succeeds, user has already confirmed email
+      if (signInData.session) {
+        setStep('preferences');
+        return;
+      }
+
+      // If not signed in, try to sign up
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password: verificationCode,
+        options: {
+          data: {
+            phone_number: phoneNumber
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      // Check if email confirmation is required
+      if (!authData.session) {
+        setError(
+          'Please check your email to confirm your account. Once confirmed, you can sign in again to continue.'
+        );
+        return;
+      }
+
+      // Create user in Supabase database if they don't exist
+      const { data: existingUser, error: lookupError } = await supabase
+        .from('users')
+        .select()
+        .eq('phone_number', phoneNumber)
+        .single();
+
+      if (lookupError && lookupError.code !== 'PGRST116') {
+        throw lookupError;
+      }
+
+      if (!existingUser) {
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([{ 
+            phone_number: phoneNumber,
+            email: email,
+            id: authData.user?.id
+          }]);
+
+        if (insertError) throw insertError;
+      }
+
+      setStep('preferences');
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('Email not confirmed')) {
+        setError('Please check your email to confirm your account. Once confirmed, you can sign in again to continue.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Verification failed');
+      }
+      console.error('Error during verification:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handlePreferences = () => {
-    router.push('/journal');
+  const handlePreferences = async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      // Update user preferences in Supabase
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          journal_time: preferences.journalTime,
+          timezone: preferences.timezone
+        })
+        .eq('phone_number', phoneNumber);
+
+      if (updateError) throw updateError;
+
+      // Send welcome message via Twilio WhatsApp
+      const response = await sendWhatsAppMessage(
+        phoneNumber,
+        'Welcome to MicroJournal! You will receive your first journal prompt at your chosen time. Reply with your thoughts whenever you are ready.'
+      );
+
+      if (response.status === 'failed') {
+        throw new Error(response.errorMessage || 'Failed to send welcome message');
+      }
+
+      router.push('/journal');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save preferences');
+      console.error('Error saving preferences:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -56,32 +203,54 @@ function SignupPage() {
           </div>
         </div>
 
+        {/* Error message */}
+        {error && (
+          <div className="w-full mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+          </div>
+        )}
+
         {/* Phone input step */}
         {step === 'phone' && (
           <div className="w-full space-y-6">
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-gray-900 mb-3">Enter your number</h1>
-              <p className="text-gray-700 text-base">We'll send you a verification code via WhatsApp</p>
+              <h1 className="text-2xl font-bold text-gray-900 mb-3">Create your account</h1>
+              <p className="text-gray-700 text-base">Enter your details to get started</p>
             </div>
             <div className="space-y-4">
               <div className="relative">
+                <label htmlFor="email" className="sr-only">Email address</label>
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 h-5 w-5" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10"
+                  placeholder="you@example.com"
+                />
+              </div>
+              <div className="relative">
                 <label htmlFor="phone" className="sr-only">Phone number</label>
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 h-5 w-5" />
-                <input
+                <Input
                   id="phone"
                   type="tel"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-600 focus:border-orange-600 text-base text-gray-900"
+                  className="w-full pl-10"
                   placeholder="+1234567890"
                 />
               </div>
-              <button
+              <Button
                 onClick={handlePhoneSubmit}
-                className="w-full bg-orange-600 text-white py-3 rounded-lg hover:bg-orange-700 transition-colors text-base font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-600"
+                disabled={isLoading || !phoneNumber || !email}
+                variant="primary"
+                size="lg"
+                className="w-full"
               >
-                Continue
-              </button>
+                {isLoading ? 'Sending...' : 'Continue'}
+              </Button>
             </div>
           </div>
         )}
@@ -94,19 +263,22 @@ function SignupPage() {
               <p className="text-gray-600">Check your WhatsApp for the code</p>
             </div>
             <div className="space-y-4">
-              <input
+              <Input
                 type="text"
                 value={verificationCode}
                 onChange={(e) => setVerificationCode(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-center text-2xl"
+                className="w-full text-center text-2xl"
                 maxLength={6}
               />
-              <button
+              <Button
                 onClick={handleVerification}
-                className="w-full bg-orange-600 text-white py-2 rounded-lg"
+                disabled={isLoading || verificationCode.length !== 6}
+                variant="primary"
+                size="lg"
+                className="w-full"
               >
-                Verify
-              </button>
+                {isLoading ? 'Verifying...' : 'Verify'}
+              </Button>
             </div>
           </div>
         )}
@@ -121,11 +293,11 @@ function SignupPage() {
             <div className="space-y-4">
               <div className="relative">
                 <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <input
+                <Input
                   type="time"
                   value={preferences.journalTime}
                   onChange={(e) => setPreferences(prev => ({ ...prev, journalTime: e.target.value }))}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
+                  className="w-full pl-10"
                 />
               </div>
               <div className="relative">
@@ -133,7 +305,7 @@ function SignupPage() {
                 <select
                   value={preferences.timezone}
                   onChange={(e) => setPreferences(prev => ({ ...prev, timezone: e.target.value }))}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg appearance-none"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg appearance-none focus:ring-2 focus:ring-orange-600 focus:border-orange-600"
                 >
                   <option value="UTC">UTC</option>
                   <option value="America/New_York">New York</option>
@@ -141,12 +313,15 @@ function SignupPage() {
                   {/* Add more timezone options as needed */}
                 </select>
               </div>
-              <button
+              <Button
                 onClick={handlePreferences}
-                className="w-full bg-orange-600 text-white py-2 rounded-lg"
+                disabled={isLoading}
+                variant="primary"
+                size="lg"
+                className="w-full"
               >
-                Get Started
-              </button>
+                {isLoading ? 'Saving...' : 'Complete Setup'}
+              </Button>
             </div>
           </div>
         )}

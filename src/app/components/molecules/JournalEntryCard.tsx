@@ -2,13 +2,14 @@
 
 import React from 'react'
 import { format } from 'date-fns'
-import { Button } from '@/ui/atoms/Button'
+import { Edit2, Trash2, Pencil } from 'lucide-react'
+import { Button } from '@/app/components/ui/atoms/Button'
 import { type JournalEntry } from '@/types/api'
 
 interface JournalEntryCardProps {
   entry: JournalEntry
-  onEdit?: (id: string) => void
-  onDelete?: (id: string) => void
+  onEdit?: () => void
+  onDelete?: () => void
 }
 
 export function JournalEntryCard({
@@ -17,46 +18,48 @@ export function JournalEntryCard({
   onDelete
 }: JournalEntryCardProps) {
   return (
-    <div className="p-4 space-y-4 rounded-lg border border-gray-200">
-      <div className="flex justify-between items-start">
-        <time className="text-sm text-gray-500">
-          {format(new Date(entry.createdAt), 'PPP')}
+    <article className="p-6 group">
+      <header className="flex justify-between items-start">
+        <time className="text-xl text-clay-500 font-medium">
+          {format(new Date(entry.created_at), 'EEEE, MMMM d, yyyy')}
         </time>
-        <div className="space-x-2">
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {onEdit && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onEdit(entry.id)}
+            <button
+              onClick={onEdit}
+              className="p-2 text-clay-400 hover:text-clay-600 transition-colors"
+              title="Edit entry"
             >
-              Edit
-            </Button>
+              <Pencil className="w-4 h-4" />
+            </button>
           )}
           {onDelete && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onDelete(entry.id)}
+            <button
+              onClick={onDelete}
+              className="p-2 text-clay-400 hover:text-red-600 transition-colors"
+              title="Delete entry"
             >
-              Delete
-            </Button>
+              <Trash2 className="w-4 h-4" />
+            </button>
           )}
         </div>
-      </div>
-      <p className="text-gray-900">{entry.content}</p>
+      </header>
+      
+      <div className="mt-4 text-clay-600 whitespace-pre-wrap">{entry.content}</div>
+      
       {entry.tags && entry.tags.length > 0 && (
-        <div className="flex gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           {entry.tags.map((tag) => (
             <span
               key={tag}
-              className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded"
+              className="px-2 py-1 text-sm text-orange-600 bg-orange-50 rounded-full"
             >
-              {tag}
+              #{tag}
             </span>
           ))}
         </div>
       )}
-    </div>
+    </article>
   )
 }
 
