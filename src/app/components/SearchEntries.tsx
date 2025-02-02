@@ -30,10 +30,11 @@ export function SearchEntries({ onSearch, onResultClick }: SearchEntriesProps) {
         {
           id: 'mock1',
           content: `Found in: ${searchQuery}`,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          userId: 'user123',
-          tags: ['search']
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          user_id: 'user123',
+          tags: ['search'],
+          source: 'web'
         }
       ]
       setResults(mockResults)
@@ -68,7 +69,7 @@ export function SearchEntries({ onSearch, onResultClick }: SearchEntriesProps) {
             >
               <div className="text-sm truncate">{entry.content}</div>
               <div className="text-xs text-gray-500">
-                {new Date(entry.createdAt).toLocaleDateString()}
+                {new Date(entry.created_at).toLocaleDateString()}
               </div>
             </button>
           ))}

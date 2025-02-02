@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
-import JournalEntryCard from '@/components/molecules/JournalEntryCard'
-import { ScrollArea } from '@/ui/atoms/ScrollArea'
+import { JournalEntryCard } from '@/app/components/molecules/JournalEntryCard'
+import { ScrollArea } from '@/app/components/ui/atoms/ScrollArea'
 import { type JournalEntry } from '@/types/api'
 
 interface EntryListProps {
@@ -15,18 +15,20 @@ const mockEntries: JournalEntry[] = [
   {
     id: '1',
     content: 'Started learning TypeScript today. Really enjoying the type safety!',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    userId: 'user123',
-    tags: ['coding', 'learning']
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    user_id: 'user123',
+    tags: ['coding', 'learning'],
+    source: 'web'
   },
   {
     id: '2',
     content: 'Had a great workout session at the gym.',
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000).toISOString(),
-    userId: 'user123',
-    tags: ['fitness', 'health']
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 86400000).toISOString(),
+    user_id: 'user123',
+    tags: ['fitness', 'health'],
+    source: 'web'
   }
 ]
 

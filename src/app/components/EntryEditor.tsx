@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Button } from '@/ui/atoms/Button'
-import { Textarea } from '@/ui/atoms/Input'
+import { Button } from '@/app/components/ui/atoms/Button'
+import { Textarea } from '@/app/components/ui/atoms/Input'
 import { type JournalEntry } from '@/types/api'
 
 interface EntryEditorProps {

@@ -19,7 +19,7 @@ export function EntryDetails({ selectedEntry }: EntryDetailsProps) {
   return (
     <div className="p-6">
       <div className="text-sm text-gray-500 mb-4">
-        {new Date(selectedEntry.createdAt).toLocaleDateString()}
+        {new Date(selectedEntry.created_at).toLocaleDateString()}
       </div>
       <div className="prose">{selectedEntry.content}</div>
       {selectedEntry.tags && selectedEntry.tags.length > 0 && (
