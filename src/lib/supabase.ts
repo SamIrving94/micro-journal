@@ -1,32 +1,35 @@
 // src/lib/supabase.ts
 import { createClient } from '@supabase/supabase-js'
-import { useState, useEffect } from 'react'
+import type { JournalEntry } from '@/types/api'
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_URL')
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+// Create a Supabase client with auth enabled
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  db: {
+    schema: 'public'
+  },
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+})
+
+// Utility function to format phone numbers consistently
+export function formatPhoneNumber(phoneNumber: string): string {
+  let formatted = phoneNumber.trim();
+  if (!formatted.startsWith('+')) {
+    formatted = '+' + formatted;
+  }
+  // Remove all non-digit characters except the leading +
+  formatted = '+' + formatted.replace(/\D/g, '');
+  return formatted;
 }
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY')
-}
-
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
-
-// Auth utility functions
-export const signUp = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-  })
-  
-  if (error) throw error
-  return data
-}
-
-export const signIn = async (email: string, password: string) => {
+// Session management using Supabase Auth
+export async function signIn(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -36,38 +39,151 @@ export const signIn = async (email: string, password: string) => {
   return data
 }
 
-export const signOut = async () => {
+export async function signUp(email: string, password: string) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/callback`
+    }
+  })
+  
+  if (error) throw error
+  return data
+}
+
+export async function signOut() {
   const { error } = await supabase.auth.signOut()
   if (error) throw error
 }
 
-export const getSession = async () => {
+export async function getSession() {
   const { data: { session }, error } = await supabase.auth.getSession()
   if (error) throw error
   return session
 }
 
-// Hook to get current user (to be used with React)
-export const useUser = () => {
-  const [user, setUser] = useState<any>(null)  // Added type annotation
-  const [loading, setLoading] = useState(true)
+// Journal entry functions
+export async function getJournalEntries(userId: string): Promise<JournalEntry[]> {
+  const { data, error } = await supabase
+    .from('journal_entries')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
 
-  useEffect(() => {
-    // Get initial session
-    getSession().then(session => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+  if (error) throw error
+  return data || []
+}
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
+export async function createJournalEntry(userId: string, content: string): Promise<void> {
+  console.log('Creating journal entry:', { userId, content })
+  
+  try {
+    // First verify the user exists
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', userId)
+      .single()
 
-    return () => {
-      subscription.unsubscribe()
+    if (userError || !user) {
+      console.error('User verification failed:', userError)
+      throw new Error('User not found. Please sign in again.')
     }
-  }, [])
 
-  return { user, loading }
+    // Create the journal entry
+    const { data: newEntry, error } = await supabase
+      .from('journal_entries')
+      .insert({
+        user_id: userId,
+        content: content,
+        source: 'web',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating journal entry:', error)
+      if (error.code === 'PGRST204') {
+        throw new Error('Database schema error. Please contact support.')
+      }
+      throw error
+    }
+
+    console.log('Journal entry created successfully:', newEntry)
+  } catch (err) {
+    console.error('Error in createJournalEntry:', err)
+    throw err
+  }
+}
+
+export async function deleteJournalEntry(userId: string, entryId: string): Promise<void> {
+  const { error } = await supabase
+    .from('journal_entries')
+    .delete()
+    .eq('id', entryId)
+    .eq('user_id', userId)
+
+  if (error) throw error
+}
+
+// Database operations
+export const createUser = async (email: string) => {
+  const { data: authData, error: authError } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/callback`
+    }
+  })
+
+  if (authError) throw authError
+
+  // User record will be created automatically by Supabase's auth hooks
+  return authData
+}
+
+export const updateUserPreferences = async (userId: string, preferences: { journal_time?: string; timezone?: string }) => {
+  const { error } = await supabase
+    .from('users')
+    .update(preferences)
+    .eq('id', userId)
+
+  if (error) {
+    console.error('Error updating preferences:', error)
+    throw error
+  }
+}
+
+export const getUserByEmail = async (email: string) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('email', email)
+    .maybeSingle()
+
+  if (error) {
+    console.error('Error fetching user:', error)
+    return null
+  }
+
+  return data
+}
+
+// Password reset functions
+export async function resetPassword(email: string) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/auth/reset-password`,
+  });
+  
+  if (error) throw error;
+}
+
+export async function updatePassword(newPassword: string) {
+  const { error } = await supabase.auth.updateUser({
+    password: newPassword,
+  });
+  
+  if (error) throw error;
 }

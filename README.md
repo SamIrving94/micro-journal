@@ -1,36 +1,121 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MicroJournal
 
-## Getting Started
+A simple, elegant journaling application with WhatsApp integration and voice note transcription.
 
-First, run the development server:
+## Features
+
+- **Email Authentication**: Secure login with email & password
+- **Clean UI**: Minimalist interface focused on journaling
+- **WhatsApp Integration**: Send journal entries via text or voice notes
+- **Voice Transcription**: AI-powered transcription for voice notes
+- **Daily Prompts**: Customizable journal prompts
+
+## Setup Instructions
+
+### 1. Prerequisites
+
+- Node.js (v16+)
+- npm or yarn
+- Supabase account
+- OpenAI API key (for Whisper voice transcription)
+- Twilio account (for WhatsApp integration)
+
+### 2. Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Clone the repository
+git clone https://github.com/yourusername/micro-journal.git
+cd micro-journal
+
+# Install dependencies
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Environment Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Create a `.env.local` file in the root directory with the following variables:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 
-## Learn More
+# WhatsApp Configuration (Meta)
+NEXT_PUBLIC_WHATSAPP_API_URL=https://graph.facebook.com/v17.0
+NEXT_PUBLIC_WHATSAPP_PHONE_ID=your-whatsapp-phone-id
+NEXT_PUBLIC_WHATSAPP_ACCESS_TOKEN=your-whatsapp-access-token
+WHATSAPP_VERIFY_TOKEN=your-verify-token
 
-To learn more about Next.js, take a look at the following resources:
+# Twilio Configuration
+TWILIO_ACCOUNT_SID=your-twilio-sid
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# OpenAI Configuration
+OPENAI_API_KEY=your-openai-api-key
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 4. Database Setup
 
-## Deploy on Vercel
+1. Run the following SQL migrations in your Supabase SQL editor:
+   - `migrations/01_init.sql`
+   - `migrations/05_auth_update.sql`
+   - `migrations/06_phone_mappings.sql`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+2. Enable the following in your Supabase dashboard:
+   - Email authentication
+   - RLS (Row Level Security) policies
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 5. WhatsApp Integration Setup
+
+1. **Create a Twilio Account**:
+   - Sign up for a Twilio account at https://www.twilio.com
+   - Activate the WhatsApp Sandbox
+
+2. **Connect WhatsApp Sandbox**:
+   - Follow Twilio's instructions to connect your WhatsApp account to the Sandbox
+   - Usually involves sending a specific message to +1 415 523 8886
+
+3. **Set Up Webhooks**:
+   - In development, use ngrok to expose your local server:
+     ```bash
+     npx ngrok http 3000
+     ```
+   - Configure your Twilio WhatsApp Sandbox webhook to point to:
+     ```
+     https://your-ngrok-url.ngrok-free.app/api/whatsapp/webhook
+     ```
+
+### 6. Voice Transcription Setup
+
+1. **Get OpenAI API Key**:
+   - Create an account at https://platform.openai.com
+   - Generate an API key with access to the Whisper API
+   - Add the key to your `.env.local` file
+
+### 7. Running the Application
+
+```bash
+# Development mode
+npm run dev
+
+# Production build
+npm run build
+npm start
+```
+
+## Using Voice Notes
+
+1. Link your WhatsApp number in the app settings
+2. Send voice notes to the Twilio WhatsApp number
+3. Your voice notes will be automatically transcribed and added to your journal
+
+## Troubleshooting
+
+- **Webhook Issues**: Make sure your ngrok URL is correctly set in Twilio
+- **Transcription Errors**: Check your OpenAI API key and usage limits
+- **Database Errors**: Verify your Supabase credentials and SQL migrations
+
+## License
+
+MIT

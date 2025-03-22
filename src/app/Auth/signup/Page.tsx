@@ -2,13 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Phone, Mail, Clock, Calendar } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { sendWhatsAppMessage } from '@/lib/twilio';
+import { Mail, Lock, Clock, Calendar } from 'lucide-react';
+import { signUp, updateUserPreferences, getSession } from '@/lib/supabase';
 import { Button } from '@/app/components/ui/atoms/Button';
 import { Input } from '@/app/components/ui/atoms/Input';
 
-type SignupStep = 'phone' | 'verification' | 'preferences';
+type SignupStep = 'details' | 'verify' | 'preferences';
 
 interface UserPreferences {
   journalTime: string;
@@ -16,11 +15,10 @@ interface UserPreferences {
 }
 
 function SignupPage() {
-  const [step, setStep] = useState<SignupStep>('phone');
-  const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [step, setStep] = useState<SignupStep>('details');
   const [email, setEmail] = useState<string>('');
-  const [verificationCode, setVerificationCode] = useState<string>('');
-  const [expectedCode, setExpectedCode] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [preferences, setPreferences] = useState<UserPreferences>({
@@ -30,118 +28,50 @@ function SignupPage() {
 
   const router = useRouter();
 
-  const handlePhoneSubmit = async () => {
+  const handleDetailsSubmit = async () => {
     setIsLoading(true);
     setError('');
     try {
-      if (!email || !email.includes('@')) {
+      console.log('Starting signup process...');
+
+      if (!email || !password || !confirmPassword) {
+        throw new Error('Please fill in all fields');
+      }
+
+      if (!email.includes('@')) {
         throw new Error('Please enter a valid email address');
       }
 
-      // Generate a 6-digit code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setExpectedCode(code);
-
-      // Send verification message via Twilio WhatsApp
-      const response = await sendWhatsAppMessage(
-        phoneNumber,
-        `Your MicroJournal verification code is: ${code}`
-      );
-
-      if (response.status === 'failed') {
-        throw new Error(response.errorMessage || 'Failed to send verification code');
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
       }
 
-      // Move to verification step
-      setStep('verification');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send verification code');
-      console.error('Error sending verification:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerification = async () => {
-    setIsLoading(true);
-    setError('');
-    try {
-      // Debug logs
-      console.log('Entered code:', verificationCode);
-      console.log('Expected code:', expectedCode);
-      
-      // Verify the code (ensure string comparison)
-      if (verificationCode.toString() !== expectedCode.toString()) {
-        console.log('Code mismatch');
-        throw new Error('Invalid verification code');
+      if (password !== confirmPassword) {
+        throw new Error('Passwords do not match');
       }
 
-      console.log('Code verified successfully');
-      
-      // Try to sign in first (in case user is returning after email confirmation)
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: verificationCode,
-      });
+      console.log('Validations passed, attempting to create account...');
 
-      // If sign in succeeds, user has already confirmed email
-      if (signInData.session) {
+      // Create account with email and password
+      const { data, error: signUpError } = await signUp(email, password);
+      
+      if (signUpError) {
+        console.error('Signup error:', signUpError);
+        throw signUpError;
+      }
+
+      console.log('Signup response:', data);
+
+      if (data.session) {
+        console.log('Session created, moving to preferences...');
         setStep('preferences');
-        return;
-      }
-
-      // If not signed in, try to sign up
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password: verificationCode,
-        options: {
-          data: {
-            phone_number: phoneNumber
-          }
-        }
-      });
-
-      if (authError) throw authError;
-
-      // Check if email confirmation is required
-      if (!authData.session) {
-        setError(
-          'Please check your email to confirm your account. Once confirmed, you can sign in again to continue.'
-        );
-        return;
-      }
-
-      // Create user in Supabase database if they don't exist
-      const { data: existingUser, error: lookupError } = await supabase
-        .from('users')
-        .select()
-        .eq('phone_number', phoneNumber)
-        .single();
-
-      if (lookupError && lookupError.code !== 'PGRST116') {
-        throw lookupError;
-      }
-
-      if (!existingUser) {
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert([{ 
-            phone_number: phoneNumber,
-            email: email,
-            id: authData.user?.id
-          }]);
-
-        if (insertError) throw insertError;
-      }
-
-      setStep('preferences');
-    } catch (err) {
-      if (err instanceof Error && err.message.includes('Email not confirmed')) {
-        setError('Please check your email to confirm your account. Once confirmed, you can sign in again to continue.');
       } else {
-        setError(err instanceof Error ? err.message : 'Verification failed');
+        console.log('No session, verification needed...');
+        setStep('verify');
       }
-      console.error('Error during verification:', err);
+    } catch (err) {
+      console.error('Error in handleDetailsSubmit:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create account');
     } finally {
       setIsLoading(false);
     }
@@ -151,48 +81,42 @@ function SignupPage() {
     setIsLoading(true);
     setError('');
     try {
-      // Update user preferences in Supabase
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
-          journal_time: preferences.journalTime,
-          timezone: preferences.timezone
-        })
-        .eq('phone_number', phoneNumber);
-
-      if (updateError) throw updateError;
-
-      // Send welcome message via Twilio WhatsApp
-      const response = await sendWhatsAppMessage(
-        phoneNumber,
-        'Welcome to MicroJournal! You will receive your first journal prompt at your chosen time. Reply with your thoughts whenever you are ready.'
-      );
-
-      if (response.status === 'failed') {
-        throw new Error(response.errorMessage || 'Failed to send welcome message');
+      console.log('Getting session...');
+      const session = await getSession();
+      
+      if (!session?.user?.id) {
+        console.error('No session found');
+        throw new Error('Session expired. Please try again.');
       }
 
+      console.log('Updating preferences for user:', session.user.id);
+      await updateUserPreferences(session.user.id, {
+        journal_time: preferences.journalTime,
+        timezone: preferences.timezone
+      });
+
+      console.log('Preferences updated, redirecting to journal...');
       router.push('/journal');
     } catch (err) {
+      console.error('Error in handlePreferences:', err);
       setError(err instanceof Error ? err.message : 'Failed to save preferences');
-      console.error('Error saving preferences:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-clay-50 flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-md mx-auto w-full">
-        {/* Progress Steps - improved contrast */}
+        {/* Progress Steps */}
         <div className="w-full mb-8">
           <div className="flex justify-between relative">
-            {['phone', 'verification', 'preferences'].map((s, i) => (
+            {['details', 'verify', 'preferences'].map((s, i) => (
               <div 
                 key={s}
                 className={`w-8 h-8 rounded-full flex items-center justify-center relative z-10 text-base font-medium
                   ${step === s ? 'bg-orange-600 text-white' : 
-                    i < ['phone', 'verification', 'preferences'].indexOf(step) 
+                    i < ['details', 'verify', 'preferences'].indexOf(step) 
                     ? 'bg-green-600 text-white' 
                     : 'bg-gray-300 text-gray-700'}`}
                 aria-current={step === s ? 'step' : undefined}
@@ -210,11 +134,11 @@ function SignupPage() {
           </div>
         )}
 
-        {/* Phone input step */}
-        {step === 'phone' && (
+        {/* Details step */}
+        {step === 'details' && (
           <div className="w-full space-y-6">
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-gray-900 mb-3">Create your account</h1>
+              <h1 className="text-2xl font-bold text-gray-900 mb-3">Create Account</h1>
               <p className="text-gray-700 text-base">Enter your details to get started</p>
             </div>
             <div className="space-y-4">
@@ -231,54 +155,65 @@ function SignupPage() {
                 />
               </div>
               <div className="relative">
-                <label htmlFor="phone" className="sr-only">Phone number</label>
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 h-5 w-5" />
+                <label htmlFor="password" className="sr-only">Password</label>
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 h-5 w-5" />
                 <Input
-                  id="phone"
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10"
-                  placeholder="+1234567890"
+                  placeholder="Create a password"
+                />
+              </div>
+              <div className="relative">
+                <label htmlFor="confirmPassword" className="sr-only">Confirm password</label>
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 h-5 w-5" />
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full pl-10"
+                  placeholder="Confirm password"
                 />
               </div>
               <Button
-                onClick={handlePhoneSubmit}
-                disabled={isLoading || !phoneNumber || !email}
+                onClick={handleDetailsSubmit}
+                disabled={isLoading || !email || !password || !confirmPassword}
+                loading={isLoading}
                 variant="primary"
                 size="lg"
                 className="w-full"
               >
-                {isLoading ? 'Sending...' : 'Continue'}
+                {isLoading ? 'Creating Account...' : 'Continue'}
               </Button>
+              <div className="text-center">
+                <p className="text-sm text-gray-500">
+                  Already have an account?{' '}
+                  <button
+                    onClick={() => router.push('/auth/signin')}
+                    className="text-orange-600 hover:text-orange-700 font-medium"
+                  >
+                    Sign In
+                  </button>
+                </p>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Verification step */}
-        {step === 'verification' && (
+        {/* Verify step */}
+        {step === 'verify' && (
           <div className="w-full space-y-6">
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-gray-900">Enter verification code</h1>
-              <p className="text-gray-600">Check your WhatsApp for the code</p>
-            </div>
-            <div className="space-y-4">
-              <Input
-                type="text"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value)}
-                className="w-full text-center text-2xl"
-                maxLength={6}
-              />
-              <Button
-                onClick={handleVerification}
-                disabled={isLoading || verificationCode.length !== 6}
-                variant="primary"
-                size="lg"
-                className="w-full"
-              >
-                {isLoading ? 'Verifying...' : 'Verify'}
-              </Button>
+              <h1 className="text-2xl font-bold text-gray-900 mb-3">Verify Your Email</h1>
+              <p className="text-gray-700 text-base">
+                We've sent a verification link to {email}. Click the link to continue.
+              </p>
+              <p className="mt-4 text-sm text-gray-500">
+                After verifying your email, you'll be redirected to set your preferences.
+              </p>
             </div>
           </div>
         )}
@@ -305,17 +240,24 @@ function SignupPage() {
                 <select
                   value={preferences.timezone}
                   onChange={(e) => setPreferences(prev => ({ ...prev, timezone: e.target.value }))}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg appearance-none focus:ring-2 focus:ring-orange-600 focus:border-orange-600"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg appearance-none focus:ring-2 focus:ring-orange-600 focus:border-orange-600 bg-white text-gray-900"
                 >
                   <option value="UTC">UTC</option>
                   <option value="America/New_York">New York</option>
+                  <option value="America/Chicago">Chicago</option>
+                  <option value="America/Denver">Denver</option>
+                  <option value="America/Los_Angeles">Los Angeles</option>
                   <option value="Europe/London">London</option>
-                  {/* Add more timezone options as needed */}
+                  <option value="Europe/Paris">Paris</option>
+                  <option value="Asia/Tokyo">Tokyo</option>
+                  <option value="Asia/Dubai">Dubai</option>
+                  <option value="Australia/Sydney">Sydney</option>
                 </select>
               </div>
               <Button
                 onClick={handlePreferences}
                 disabled={isLoading}
+                loading={isLoading}
                 variant="primary"
                 size="lg"
                 className="w-full"

@@ -3,27 +3,50 @@
 @tailwind utilities;
 
 :root {
-  --foreground: #171717;
+  /* Base colors */
   --background: #faf7f5;
+  --foreground: #171717;
+  
+  /* Brand colors */
   --orange-600: #ea580c;
   --orange-700: #c2410c;
+  
+  /* Clay colors */
+  --clay-50: #faf7f5;
+  --clay-100: #f5efe9;
+  --clay-200: #ebe0d5;
+  --clay-300: #dbc7b6;
+  --clay-400: #c4a894;
+  --clay-500: #b08c74;
+  
+  /* UI colors */
+  --primary: var(--orange-600);
+  --primary-hover: var(--orange-700);
+  --error: #ef4444;
+  --success: #22c55e;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --foreground: #171717;
-    --background: #f5efe9;
+    --background: #1a1a1a;
+    --foreground: #ffffff;
   }
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
+  @apply antialiased;
 }
 
 @layer base {
   body {
     @apply antialiased;
+  }
+
+  input,
+  textarea {
+    @apply text-gray-900;
   }
 }
 
@@ -34,15 +57,39 @@ body {
 }
 
 @layer components {
+  /* Card components */
   .journal-card {
     @apply bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow;
   }
   
+  /* Form components */
   .journal-input {
-    @apply w-full p-4 rounded-lg border border-clay-200 focus:ring-2 focus:ring-orange-600 focus:border-transparent;
+    @apply w-full p-4 rounded-lg border border-clay-200 bg-white text-gray-900;
+    @apply focus:ring-2 focus:ring-orange-600 focus:border-transparent;
+    @apply placeholder:text-gray-400;
   }
   
+  /* Tag components */
   .tag-pill {
     @apply px-3 py-1 rounded-full text-sm bg-clay-100 text-clay-500;
+  }
+
+  /* Button variants */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md font-medium transition-colors;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500;
+    @apply disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-[--primary] text-white hover:bg-[--primary-hover];
+  }
+
+  .btn-secondary {
+    @apply bg-clay-100 text-gray-900 hover:bg-clay-200;
+  }
+
+  .btn-ghost {
+    @apply text-gray-600 hover:bg-clay-50;
   }
 }

@@ -1,4 +1,4 @@
-$baseUrl = "https://973b-2a04-4a43-85af-f792-10a-b4f0-e5a1-1a9d.ngrok-free.app/api/whatsapp/webhook"
+$baseUrl = "https://ed36-2a04-4a43-85af-ff28-846e-472f-e22f-96d.ngrok-free.app/api/whatsapp/webhook"
 $mode = "subscribe"
 $token = "micro_journal_webhook_verify_123"
 $challenge = "1234567890"

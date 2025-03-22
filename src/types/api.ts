@@ -11,10 +11,11 @@ export interface JournalEntry {
 
 export interface User {
   id: string;
-  phone_number: string;
+  email: string;
   journal_time: string;
   timezone: string;
   created_at: string;
+  updated_at: string;
 }
 
 export type UserPreferences = Pick<User, 'journal_time' | 'timezone'>;

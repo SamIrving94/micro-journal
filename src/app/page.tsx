@@ -1,23 +1,45 @@
 'use client'
 
 import React from 'react'
-import { redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/app/components/ui/atoms/Button'
 
 export default function Home() {
-  const isAuthenticated = false // Replace with your actual auth check
-  const hasCompletedOnboarding = false // Replace with your actual onboarding check
+  const router = useRouter()
 
-  if (!isAuthenticated) {
-    redirect('/auth/signup')
-  }
+  return (
+    <div className="min-h-screen bg-clay-50 flex flex-col items-center justify-center p-6">
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">MicroJournal</h1>
+          <p className="text-xl text-gray-600">Your daily journaling companion</p>
+        </div>
 
-  if (!hasCompletedOnboarding) {
-    redirect('/onboarding')
-  }
+        <div className="space-y-4">
+          <Button
+            onClick={() => router.push('/auth/signup')}
+            variant="primary"
+            size="lg"
+            className="w-full"
+          >
+            Sign Up
+          </Button>
+          
+          <Button
+            onClick={() => router.push('/auth/signin')}
+            variant="secondary"
+            size="lg"
+            className="w-full"
+          >
+            Sign In
+          </Button>
 
-  redirect('/journal')
-
-  // This code will never be reached due to redirects
-  return null
+          <p className="text-sm text-center text-gray-500">
+            Already have an account? Click "Sign In" to access your journal
+          </p>
+        </div>
+      </div>
+    </div>
+  )
 }
 

@@ -1,156 +1,170 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendMessage } from '@/lib/twilio'
+import { createJournalEntry } from '@/lib/supabase'
+import { transcribeAudio } from '@/lib/whisper'
+import { mapPhoneNumberToUserId } from '@/lib/user-mapping'
 
+// Create a database-only client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  }
 )
 
-// WhatsApp verification token - should match what you set in WhatsApp Business API
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN
+// Constants
+const VERIFICATION_ERROR = {
+  MISSING_PARAMS: 'Missing required verification parameters',
+  INVALID_TOKEN: 'Invalid verification token'
+};
 
+const WEBHOOK_RESPONSE = {
+  VERIFIED: 'WEBHOOK_VERIFIED',
+  FAILED: 'VERIFICATION_FAILED',
+  USER_NOT_FOUND: 'User not found for this phone number',
+  SUCCESS: 'Success',
+  UNHANDLED: 'Unhandled webhook event',
+  ERROR: 'An error occurred processing the webhook'
+};
+
+/**
+ * Handle webhook verification from WhatsApp
+ */
 export async function GET(request: Request): Promise<NextResponse> {
-  try {
-    console.log('Webhook GET request received')
-    console.log('Environment variables:', {
-      VERIFY_TOKEN,
-      URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-      // Log other non-sensitive env vars
-    })
+  const { searchParams } = new URL(request.url)
+  const mode = searchParams.get('hub.mode')
+  const token = searchParams.get('hub.verify_token')
+  const challenge = searchParams.get('hub.challenge')
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN
 
-    const { searchParams } = new URL(request.url)
-    
-    // Handle the webhook verification from WhatsApp
-    const mode = searchParams.get('hub.mode')
-    const token = searchParams.get('hub.verify_token')
-    const challenge = searchParams.get('hub.challenge')
+  // Log the verification attempt for debugging
+  console.log('Webhook verification attempt with:', { mode, token, challenge: !!challenge })
 
-    console.log('Webhook verification request:', {
-      mode,
-      token,
-      challenge,
-      expectedToken: VERIFY_TOKEN,
-      url: request.url,
-      headers: Object.fromEntries(request.headers)
-    })
+  // Validate required parameters
+  if (!mode || !token || !challenge) {
+    console.warn(VERIFICATION_ERROR.MISSING_PARAMS, { mode, token: token?.substring(0, 3) })
+    return NextResponse.json({ error: VERIFICATION_ERROR.MISSING_PARAMS }, { status: 400 })
+  }
 
-    if (!mode || !token || !challenge) {
-      console.log('Missing required parameters')
-      return new NextResponse('Missing parameters', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      })
-    }
-
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('Webhook verified successfully')
-      return new NextResponse(challenge, {
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' }
-      })
-    }
-    
-    console.log('Invalid verification token or mode:', {
-      receivedToken: token,
-      expectedToken: VERIFY_TOKEN,
-      mode
+  // Verify token
+  if (mode === 'subscribe' && token === verifyToken) {
+    console.log(WEBHOOK_RESPONSE.VERIFIED)
+    return new NextResponse(challenge, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
     })
-    return new NextResponse('Forbidden', { 
-      status: 403,
-      headers: { 'Content-Type': 'text/plain' }
+  } else {
+    console.warn(WEBHOOK_RESPONSE.FAILED, { 
+      expectedToken: verifyToken?.substring(0, 3), 
+      receivedToken: token?.substring(0, 3),
+      mode 
     })
-  } catch (error) {
-    console.error('Error during webhook verification:', error)
-    return new NextResponse('Internal Server Error', { 
-      status: 500,
-      headers: { 'Content-Type': 'text/plain' }
-    })
+    return NextResponse.json({ error: VERIFICATION_ERROR.INVALID_TOKEN }, { status: 403 })
   }
 }
 
+/**
+ * Handle incoming messages from WhatsApp
+ */
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    console.log('Received Twilio WhatsApp webhook POST request')
+    const body = await request.json()
     
-    // Parse form data from Twilio
-    const formData = await request.formData()
-    console.log('Webhook form data:', Object.fromEntries(formData.entries()))
-    
-    // Extract message details from Twilio's format
-    const phoneNumber = formData.get('From')?.toString().replace('whatsapp:', '')
-    const content = formData.get('Body')?.toString()
-
-    console.log('Processing message:', {
-      phoneNumber,
-      content,
-      timestamp: new Date().toISOString()
+    // Log with limited data to avoid exposing sensitive information
+    console.log('Received webhook event:', { 
+      object: body.object,
+      entries: body.entry?.length || 0
     })
 
-    if (!phoneNumber || !content) {
-      console.log('Invalid message format')
-      return new NextResponse('Invalid message format', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      })
+    // Validate webhook structure
+    if (body.object !== 'whatsapp_business_account' || !body.entry?.length) {
+      return NextResponse.json({ status: WEBHOOK_RESPONSE.UNHANDLED }, { status: 200 })
     }
 
-    // Find user by phone number
-    console.log('Looking up user by phone number:', phoneNumber)
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('phone_number', phoneNumber)
-      .single()
-
-    if (userError || !user) {
-      console.error('Error finding user:', {
-        error: userError,
-        phoneNumber
-      })
-      return new NextResponse('User not found', { 
-        status: 404,
-        headers: { 'Content-Type': 'text/plain' }
-      })
-    }
-
-    // Save message as journal entry
-    console.log('Saving journal entry for user:', user.id)
-    const { error: entryError } = await supabase
-      .from('journal_entries')
-      .insert({
-        user_id: user.id,
-        content,
-        source: 'whatsapp',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        tags: []
-      })
-
-    if (entryError) {
-      console.error('Error saving journal entry:', {
-        error: entryError,
-        userId: user.id,
-        content
-      })
-      return new NextResponse('Error saving entry', { 
-        status: 500,
-        headers: { 'Content-Type': 'text/plain' }
-      })
-    }
-
-    // Send confirmation message back via Twilio
-    return new NextResponse(
-      '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Entry saved successfully! ✍️</Message></Response>', 
-      {
-        status: 200,
-        headers: { 'Content-Type': 'text/xml' }
+    // Process each message
+    for (const entry of body.entry) {
+      for (const change of entry.changes) {
+        if (change.field === 'messages' && change.value?.messages?.length > 0) {
+          const message = change.value.messages[0]
+          const from = message.from
+          
+          // Map phone number to user ID
+          const userId = await mapPhoneNumberToUserId(from)
+          
+          if (!userId) {
+            console.warn(`No user ID found for phone number: ${from}`)
+            return NextResponse.json({ 
+              status: 'error', 
+              message: WEBHOOK_RESPONSE.USER_NOT_FOUND
+            }, { status: 404 })
+          }
+          
+          // Handle text messages
+          if (message.type === 'text' && message.text?.body) {
+            return await handleTextMessage(userId, from, message.text.body)
+          }
+          // Handle voice messages
+          else if ((message.type === 'audio' || message.type === 'voice') && 
+                    (message.audio?.id || message.voice?.id)) {
+            return await handleVoiceMessage(userId, from, message.audio?.id || message.voice?.id)
+          }
+        }
       }
-    )
+    }
+
+    return NextResponse.json({ status: WEBHOOK_RESPONSE.UNHANDLED }, { status: 200 })
   } catch (error) {
-    console.error('Error processing webhook:', error)
-    return new NextResponse('Internal Server Error', { 
-      status: 500,
-      headers: { 'Content-Type': 'text/plain' }
-    })
+    console.error('Webhook processing error:', error)
+    return NextResponse.json({ 
+      status: 'error', 
+      message: WEBHOOK_RESPONSE.ERROR
+    }, { status: 500 })
+  }
+}
+
+/**
+ * Handle text messages from WhatsApp
+ */
+async function handleTextMessage(userId: string, from: string, content: string): Promise<NextResponse> {
+  console.log(`Received text from ${from} (userId: ${userId}): ${content.substring(0, 20)}...`)
+  
+  try {
+    await createJournalEntry(userId, content)
+    return NextResponse.json({ status: 'success' })
+  } catch (error) {
+    console.error('Error creating journal entry:', error)
+    return NextResponse.json({ 
+      status: 'error', 
+      message: 'Failed to save journal entry' 
+    }, { status: 500 })
+  }
+}
+
+/**
+ * Handle voice messages from WhatsApp
+ */
+async function handleVoiceMessage(userId: string, from: string, audioId: string): Promise<NextResponse> {
+  console.log(`Received voice message from ${from} (userId: ${userId})`)
+  
+  try {
+    // Transcribe the audio
+    const transcription = await transcribeAudio(audioId)
+    console.log(`Transcription complete: ${transcription.substring(0, 30)}...`)
+    
+    // Create journal entry with transcribed text
+    await createJournalEntry(userId, transcription)
+    return NextResponse.json({ status: 'success' })
+  } catch (error) {
+    console.error('Error processing voice message:', error)
+    return NextResponse.json({ 
+      status: 'error', 
+      message: 'Failed to process voice message' 
+    }, { status: 500 })
   }
 } 
