@@ -48,8 +48,7 @@ export async function signUp(email: string, password: string) {
     }
   })
   
-  if (error) throw error
-  return data
+  return { user: data.user, session: data.session, error }
 }
 
 export async function signOut() {

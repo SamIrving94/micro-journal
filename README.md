@@ -1,121 +1,135 @@
 # MicroJournal
 
-A simple, elegant journaling application with WhatsApp integration and voice note transcription.
+MicroJournal is a minimalist journaling application that allows users to write, view, and manage their journal entries through a clean and intuitive interface. The application supports email authentication and provides a seamless journaling experience.
 
 ## Features
 
-- **Email Authentication**: Secure login with email & password
-- **Clean UI**: Minimalist interface focused on journaling
-- **WhatsApp Integration**: Send journal entries via text or voice notes
-- **Voice Transcription**: AI-powered transcription for voice notes
-- **Daily Prompts**: Customizable journal prompts
+- **Email Authentication**: Secure sign-up and sign-in using Supabase's authentication system with email OTP
+- **Password Recovery**: Password reset functionality for users who forgot their credentials
+- **Journal Entry Management**: Create, read, and delete journal entries
+- **Calendar View**: Browse journal entries by date using the integrated calendar
+- **Responsive Design**: Works on desktop and mobile devices
 
-## Setup Instructions
+## Tech Stack
 
-### 1. Prerequisites
+- **Frontend**: Next.js, React, Tailwind CSS
+- **Backend**: Supabase for authentication and data storage
+- **Database**: PostgreSQL (provided by Supabase)
+- **Authentication**: Supabase Auth with email magic links
 
-- Node.js (v16+)
+## Getting Started
+
+### Prerequisites
+
+- Node.js (version 16 or higher)
 - npm or yarn
-- Supabase account
-- OpenAI API key (for Whisper voice transcription)
-- Twilio account (for WhatsApp integration)
+- A Supabase account
 
-### 2. Installation
+### Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/micro-journal.git
-cd micro-journal
+1. Clone the repository:
+   ```
+   git clone https://github.com/SamIrving94/micro-journal.git
+   cd micro-journal
+   ```
 
-# Install dependencies
-npm install
+2. Install dependencies:
+   ```
+   npm install
+   ```
+
+3. Set up environment variables:
+   Create a `.env.local` file in the project root with the following variables:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+4. Set up the database:
+   Run the SQL migrations in the `migrations/` folder in your Supabase project.
+
+5. Run the development server:
+   ```
+   npm run dev
+   ```
+
+6. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+
+## Deployment
+
+The application can be deployed using Vercel, Netlify, or any other platform that supports Next.js applications.
+
+### Deploy on Vercel (Recommended)
+
+1. Push your code to a Git repository (GitHub, GitLab, or Bitbucket).
+2. Visit [Vercel](https://vercel.com) and sign up or log in.
+3. Click "New Project" and import your repository.
+4. Configure the project:
+   - Framework Preset: Next.js
+   - Root Directory: `./` (or your project root)
+   - Build Command: `npm run build`
+   - Output Directory: `.next`
+5. Add the environment variables under "Environment Variables" section:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - Any other required variables
+6. Click "Deploy" and wait for the build to complete.
+
+### Deploy on Netlify
+
+1. Push your code to a Git repository.
+2. Visit [Netlify](https://netlify.com) and sign up or log in.
+3. Click "New site from Git" and select your repository.
+4. Configure the build settings:
+   - Build Command: `npm run build`
+   - Publish Directory: `.next`
+5. Add the environment variables under "Site settings" → "Environment variables":
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - Any other required variables
+6. Click "Deploy site" and wait for the build to complete.
+
+### Important Deployment Notes
+
+1. Ensure your Supabase project has the correct authentication settings:
+   - Enable Email Auth in the Supabase Dashboard
+   - Configure the Site URL in Supabase Auth settings to match your deployed URL
+   - Set up any necessary redirect URLs for authentication
+
+2. Update CORS settings in Supabase if needed, to allow requests from your deployed domain.
+
+## Project Structure
+
+- `/src` - Source code
+  - `/app` - Next.js app directory
+    - `/api` - API routes
+    - `/auth` - Authentication pages
+    - `/components` - React components
+    - `/journal` - Journal pages
+    - `/settings` - Settings pages
+  - `/lib` - Utility functions and services
+  - `/types` - TypeScript type definitions
+- `/migrations` - Database migrations
+- `/public` - Static assets
+
+## Testing
+
+The project uses Jest and React Testing Library for testing. To run tests:
+
+```
+npm test
 ```
 
-### 3. Environment Setup
-
-1. Create a `.env.local` file in the root directory with the following variables:
+To run tests with coverage:
 
 ```
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-
-# WhatsApp Configuration (Meta)
-NEXT_PUBLIC_WHATSAPP_API_URL=https://graph.facebook.com/v17.0
-NEXT_PUBLIC_WHATSAPP_PHONE_ID=your-whatsapp-phone-id
-NEXT_PUBLIC_WHATSAPP_ACCESS_TOKEN=your-whatsapp-access-token
-WHATSAPP_VERIFY_TOKEN=your-verify-token
-
-# Twilio Configuration
-TWILIO_ACCOUNT_SID=your-twilio-sid
-TWILIO_AUTH_TOKEN=your-twilio-auth-token
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
-
-# OpenAI Configuration
-OPENAI_API_KEY=your-openai-api-key
+npm run test:coverage
 ```
 
-### 4. Database Setup
+## Contributing
 
-1. Run the following SQL migrations in your Supabase SQL editor:
-   - `migrations/01_init.sql`
-   - `migrations/05_auth_update.sql`
-   - `migrations/06_phone_mappings.sql`
-
-2. Enable the following in your Supabase dashboard:
-   - Email authentication
-   - RLS (Row Level Security) policies
-
-### 5. WhatsApp Integration Setup
-
-1. **Create a Twilio Account**:
-   - Sign up for a Twilio account at https://www.twilio.com
-   - Activate the WhatsApp Sandbox
-
-2. **Connect WhatsApp Sandbox**:
-   - Follow Twilio's instructions to connect your WhatsApp account to the Sandbox
-   - Usually involves sending a specific message to +1 415 523 8886
-
-3. **Set Up Webhooks**:
-   - In development, use ngrok to expose your local server:
-     ```bash
-     npx ngrok http 3000
-     ```
-   - Configure your Twilio WhatsApp Sandbox webhook to point to:
-     ```
-     https://your-ngrok-url.ngrok-free.app/api/whatsapp/webhook
-     ```
-
-### 6. Voice Transcription Setup
-
-1. **Get OpenAI API Key**:
-   - Create an account at https://platform.openai.com
-   - Generate an API key with access to the Whisper API
-   - Add the key to your `.env.local` file
-
-### 7. Running the Application
-
-```bash
-# Development mode
-npm run dev
-
-# Production build
-npm run build
-npm start
-```
-
-## Using Voice Notes
-
-1. Link your WhatsApp number in the app settings
-2. Send voice notes to the Twilio WhatsApp number
-3. Your voice notes will be automatically transcribed and added to your journal
-
-## Troubleshooting
-
-- **Webhook Issues**: Make sure your ngrok URL is correctly set in Twilio
-- **Transcription Errors**: Check your OpenAI API key and usage limits
-- **Database Errors**: Verify your Supabase credentials and SQL migrations
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the LICENSE file for details.
