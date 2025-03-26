@@ -1,151 +1,91 @@
-# Deployment Guide for MicroJournal
+# Deploying Microjournal to Production
 
-This document provides a step-by-step guide for deploying the MicroJournal application to a production environment.
+This guide will walk you through the process of deploying the Microjournal application to production.
 
-## Deployment Options
+## Prerequisites
 
-MicroJournal can be deployed using various platforms. Below are the recommended options:
+- A Supabase account with your database set up
+- A domain name (optional, but recommended)
+- A Vercel account (recommended for easiest deployment)
 
-### 1. Vercel (Recommended)
+## Deployment Steps
 
-[Vercel](https://vercel.com) is the best platform for deploying Next.js applications, as it's made by the same team behind Next.js.
+### 1. Prepare Your Environment
 
-#### Steps:
+Create a `.env.production` file with your production environment variables:
 
-1. **Create a Vercel Account**: 
-   - Sign up at [vercel.com](https://vercel.com) if you don't have an account.
+```
+NEXT_PUBLIC_SUPABASE_URL=your-production-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-supabase-anon-key
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+```
 
-2. **Install Vercel CLI** (optional for command line deployment):
+### 2. Run Pre-deployment Checks
+
+```bash
+npm run check-deploy
+```
+
+This script will verify that all required environment variables are set and that the application builds successfully.
+
+### 3. Deploy to Vercel (Recommended)
+
+#### First-time Setup
+
+1. Push your code to a Git repository (GitHub, GitLab, or Bitbucket)
+2. Create a new project on Vercel and connect it to your repository
+3. Configure the following environment variables in the Vercel dashboard:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_APP_URL`
+4. Deploy the application
+
+#### Subsequent Deployments
+
+Vercel will automatically deploy new versions when you push changes to your repository.
+
+### 4. Alternative Deployment Options
+
+#### Manual Deployment
+
+1. Build the application: `npm run build`
+2. Start the production server: `npm run start`
+
+#### Docker Deployment
+
+A Dockerfile is included for containerized deployments.
+
+1. Build the Docker image:
+   ```bash
+   docker build -t microjournal .
    ```
-   npm install -g vercel
+
+2. Run the container:
+   ```bash
+   docker run -p 3000:3000 -d microjournal
    ```
 
-3. **Connect Your GitHub Repository**:
-   - Go to the Vercel dashboard and click "Import Project"
-   - Choose "Import Git Repository"
-   - Select your MicroJournal repository
-   - Authorize Vercel to access your GitHub account if prompted
+## Post-Deployment Steps
 
-4. **Configure Project Settings**:
-   - Set the Build Command: `npm run build`
-   - Set the Output Directory: `.next`
-   - Add Environment Variables in the Vercel dashboard:
-     - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase URL for production
-     - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anon key for production
+1. **Test the application thoroughly**
+   - Verify that authentication works
+   - Check that journal entries can be created and retrieved
+   - Ensure that all features work as expected
 
-5. **Deploy**:
-   - Click "Deploy" and wait for the build to complete
-   - Vercel will provide you with a URL where your application is deployed
+2. **Set up monitoring** (optional)
+   - Consider adding error tracking with Sentry
+   - Set up uptime monitoring with UptimeRobot or similar services
 
-### 2. Netlify
+3. **Set up analytics** (optional)
+   - Configure a privacy-friendly analytics tool like Plausible or Umami
 
-[Netlify](https://netlify.com) is another excellent platform for hosting Next.js applications.
+## Troubleshooting
 
-#### Steps:
+If you encounter issues during deployment:
 
-1. **Create a Netlify Account**:
-   - Sign up at [netlify.com](https://netlify.com) if you don't have an account.
+1. Check that all environment variables are correctly set
+2. Verify that your Supabase database is accessible
+3. Check the application logs for errors
+4. Ensure your database has the correct schema and policies
 
-2. **Connect Your GitHub Repository**:
-   - Click "New site from Git"
-   - Choose GitHub as your Git provider
-   - Select your MicroJournal repository
-
-3. **Configure Build Settings**:
-   - Set the Build Command: `npm run build`
-   - Set the Publish Directory: `.next`
-
-4. **Add Environment Variables**:
-   - In the Netlify dashboard, go to Site Settings > Environment Variables
-   - Add the same environment variables as listed for Vercel
-
-5. **Deploy**:
-   - Click "Deploy site"
-
-## Database Setup for Production
-
-### Supabase Production Project
-
-1. **Create a Production Project in Supabase**:
-   - Log in to your Supabase account
-   - Create a new project specifically for production
-
-2. **Run Migrations**:
-   - Execute the SQL migrations from the `migrations/` folder in your production Supabase project
-
-3. **Configure Authentication**:
-   - In the Supabase dashboard, go to Authentication > Settings:
-     - Enable Email Authentication
-     - Configure the Site URL to match your deployed application URL
-     - Set up any additional security settings as needed
-
-4. **Update Environment Variables**:
-   - Update your production environment variables with the production Supabase credentials
-
-## Post-Deployment Checklist
-
-After deploying, go through this checklist to ensure everything is working correctly:
-
-1. **Test Authentication**:
-   - Sign up with a new account
-   - Sign in with an existing account
-   - Test password reset functionality
-
-2. **Test Journal Features**:
-   - Create new journal entries
-   - View existing entries
-   - Delete entries
-   - Navigate through the calendar
-
-3. **Check Mobile Responsiveness**:
-   - Test the application on various device sizes
-
-4. **Performance Monitoring**:
-   - Set up monitoring tools like Vercel Analytics or Google Analytics
-   - Monitor for any errors in the application logs
-
-## Troubleshooting Common Issues
-
-### Authentication Issues
-
-- **Problem**: Users can't sign in or sign up
-- **Solution**: Check your Supabase Auth configuration and ensure the Site URL is correctly set to your deployed URL
-
-### Database Connection Issues
-
-- **Problem**: Can't connect to the database
-- **Solution**: Verify your Supabase URL and anon key in your environment variables
-
-### Build Errors
-
-- **Problem**: Build fails during deployment
-- **Solution**: Check the build logs for specific errors. Common issues include:
-  - Missing dependencies
-  - TypeScript errors
-  - Environment variable issues
-
-## Updating Your Deployed Application
-
-To update your deployed application:
-
-1. **Make and test changes locally**
-2. **Commit changes to your GitHub repository**
-3. **If using Vercel or Netlify with auto-deployment**:
-   - The changes will be automatically deployed
-4. **If using manual deployment**:
-   - Run the deployment command again:
-     ```
-     vercel --prod
-     ```
-     or for Netlify:
-     ```
-     netlify deploy --prod
-     ```
-
-## Scaling Considerations
-
-As your user base grows, consider the following:
-
-- **Supabase Plan**: Upgrade your Supabase plan based on usage
-- **Performance Optimization**: Implement caching strategies for frequently accessed data
-- **Monitoring**: Set up alerts for errors and performance issues 
+For more help, refer to the Next.js [deployment documentation](https://nextjs.org/docs/deployment). 

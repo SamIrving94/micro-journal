@@ -57,46 +57,15 @@ MicroJournal is a minimalist journaling application that allows users to write, 
 
 ## Deployment
 
-The application can be deployed using Vercel, Netlify, or any other platform that supports Next.js applications.
+This application is production-ready and can be deployed to various platforms.
 
-### Deploy on Vercel (Recommended)
+### Quick Deployment Steps
 
-1. Push your code to a Git repository (GitHub, GitLab, or Bitbucket).
-2. Visit [Vercel](https://vercel.com) and sign up or log in.
-3. Click "New Project" and import your repository.
-4. Configure the project:
-   - Framework Preset: Next.js
-   - Root Directory: `./` (or your project root)
-   - Build Command: `npm run build`
-   - Output Directory: `.next`
-5. Add the environment variables under "Environment Variables" section:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - Any other required variables
-6. Click "Deploy" and wait for the build to complete.
+1. Set up your environment variables in `.env.production`
+2. Run the pre-deployment check: `npm run check-deploy`
+3. Deploy to Vercel, Netlify, or any other platform supporting Next.js
 
-### Deploy on Netlify
-
-1. Push your code to a Git repository.
-2. Visit [Netlify](https://netlify.com) and sign up or log in.
-3. Click "New site from Git" and select your repository.
-4. Configure the build settings:
-   - Build Command: `npm run build`
-   - Publish Directory: `.next`
-5. Add the environment variables under "Site settings" → "Environment variables":
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - Any other required variables
-6. Click "Deploy site" and wait for the build to complete.
-
-### Important Deployment Notes
-
-1. Ensure your Supabase project has the correct authentication settings:
-   - Enable Email Auth in the Supabase Dashboard
-   - Configure the Site URL in Supabase Auth settings to match your deployed URL
-   - Set up any necessary redirect URLs for authentication
-
-2. Update CORS settings in Supabase if needed, to allow requests from your deployed domain.
+For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Project Structure
 

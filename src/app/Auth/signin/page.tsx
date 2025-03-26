@@ -1,118 +1,90 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Mail, Lock } from 'lucide-react';
 import { signIn } from '@/lib/supabase';
-import { Button } from '@/app/components/ui/atoms/Button';
-import { Input } from '@/app/components/ui/atoms/Input';
+import { useRouter } from 'next/navigation';
 
 export default function SignInPage() {
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string>('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleSignIn = async () => {
-    setIsLoading(true);
-    setError('');
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
     try {
-      if (!email || !password) {
-        throw new Error('Please enter both email and password');
-      }
-
-      if (!email.includes('@')) {
-        throw new Error('Please enter a valid email address');
-      }
-
-      // Sign in with email and password
       const { session } = await signIn(email, password);
-      
-      if (session) {
-        router.push('/journal');
-      } else {
+      if (!session) {
         throw new Error('Failed to sign in. Please check your credentials.');
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign in');
-      console.error('Error signing in:', err);
+      router.push('/journal');
+    } catch (err: any) {
+      setError(err.message || 'Failed to sign in');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-clay-50 flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-md mx-auto w-full">
-        {/* Error/Success message */}
-        {error && (
-          <div className="w-full mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        )}
-
-        <div className="w-full space-y-6">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900 mb-3">Welcome Back</h1>
-            <p className="text-gray-700 text-base">Sign in to your journal</p>
-          </div>
-          <div className="space-y-4">
-            <div className="relative">
-              <label htmlFor="email" className="sr-only">Email address</label>
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 h-5 w-5" />
-              <Input
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Sign in to your account
+          </h2>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSignIn}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="email" className="sr-only">
+                Email address
+              </label>
+              <input
                 id="email"
+                name="email"
                 type="email"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10"
-                placeholder="you@example.com"
               />
             </div>
-            <div className="relative">
-              <label htmlFor="password" className="sr-only">Password</label>
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 h-5 w-5" />
-              <Input
+            <div>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
+              <input
                 id="password"
+                name="password"
                 type="password"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10"
-                placeholder="Enter your password"
               />
             </div>
-            <Button
-              onClick={handleSignIn}
-              disabled={isLoading || !email || !password}
-              loading={isLoading}
-              variant="primary"
-              size="lg"
-              className="w-full"
-            >
-              {isLoading ? 'Signing in...' : 'Sign In'}
-            </Button>
-            <div className="text-center space-y-2">
-              <p className="text-sm text-gray-500">
-                Don't have an account?{' '}
-                <button
-                  onClick={() => router.push('/auth/signup')}
-                  className="text-orange-600 hover:text-orange-700 font-medium"
-                >
-                  Sign Up
-                </button>
-              </p>
-              <p className="text-sm text-gray-500">
-                <button
-                  onClick={() => router.push('/auth/reset-password')}
-                  className="text-orange-600 hover:text-orange-700 font-medium"
-                >
-                  Forgot your password?
-                </button>
-              </p>
-            </div>
           </div>
-        </div>
+
+          {error && (
+            <div className="text-red-500 text-sm text-center">{error}</div>
+          )}
+
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              {loading ? 'Signing in...' : 'Sign in'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
