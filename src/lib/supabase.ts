@@ -1,21 +1,14 @@
 // src/lib/supabase.ts
 import { createClient } from '@supabase/supabase-js'
 import type { JournalEntry } from '@/types/api'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 // Create a Supabase client with auth enabled
-export const supabase = createClient(supabaseUrl, supabaseKey, {
-  db: {
-    schema: 'public'
-  },
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  }
-})
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const createClientSupabase = createClientComponentClient()
 
 // Utility function to format phone numbers consistently
 export function formatPhoneNumber(phoneNumber: string): string {
@@ -36,7 +29,7 @@ export async function signIn(email: string, password: string) {
   })
   
   if (error) throw error
-  return data
+  return { session: data.session }
 }
 
 export async function signUp(email: string, password: string) {
@@ -44,11 +37,12 @@ export async function signUp(email: string, password: string) {
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
     }
   })
   
-  return { user: data.user, session: data.session, error }
+  if (error) throw error
+  return { user: data.user }
 }
 
 export async function signOut() {
@@ -133,7 +127,7 @@ export const createUser = async (email: string) => {
   const { data: authData, error: authError } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`
     }
   })
 
@@ -173,7 +167,7 @@ export const getUserByEmail = async (email: string) => {
 // Password reset functions
 export async function resetPassword(email: string) {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth/reset-password`,
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password`,
   });
   
   if (error) throw error;
