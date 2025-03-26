@@ -9,6 +9,7 @@ MicroJournal is a minimalist journaling application that allows users to write, 
 - **Journal Entry Management**: Create, read, and delete journal entries
 - **Calendar View**: Browse journal entries by date using the integrated calendar
 - **Responsive Design**: Works on desktop and mobile devices
+- **Automated Deployment**: Continuous deployment through GitHub Actions to Vercel
 
 ## Tech Stack
 
@@ -16,6 +17,7 @@ MicroJournal is a minimalist journaling application that allows users to write, 
 - **Backend**: Supabase for authentication and data storage
 - **Database**: PostgreSQL (provided by Supabase)
 - **Authentication**: Supabase Auth with email magic links
+- **CI/CD**: GitHub Actions, Vercel
 
 ## Getting Started
 
@@ -57,15 +59,58 @@ MicroJournal is a minimalist journaling application that allows users to write, 
 
 ## Deployment
 
-This application is production-ready and can be deployed to various platforms.
+The application is automatically deployed to Vercel through GitHub Actions. Every push to the `master` branch triggers:
 
-### Quick Deployment Steps
+1. Automated testing
+2. Type checking
+3. Production deployment to Vercel
 
-1. Set up your environment variables in `.env.production`
-2. Run the pre-deployment check: `npm run check-deploy`
-3. Deploy to Vercel, Netlify, or any other platform supporting Next.js
+### Manual Deployment
 
-For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md).
+If you need to deploy manually, you can use Vercel CLI:
+
+```bash
+npm i -g vercel
+vercel
+```
+
+### Deploy on Vercel (Recommended)
+
+1. Push your code to a Git repository (GitHub, GitLab, or Bitbucket).
+2. Visit Vercel and sign up or log in.
+3. Click "New Project" and import your repository.
+4. Configure the project:  
+   * Framework Preset: Next.js  
+   * Root Directory: `./` (or your project root)  
+   * Build Command: `npm run build`  
+   * Output Directory: `.next`
+5. Add the environment variables under "Environment Variables" section:  
+   * `NEXT_PUBLIC_SUPABASE_URL`  
+   * `NEXT_PUBLIC_SUPABASE_ANON_KEY`  
+   * Any other required variables
+6. Click "Deploy" and wait for the build to complete.
+
+### Deploy on Netlify
+
+1. Push your code to a Git repository.
+2. Visit Netlify and sign up or log in.
+3. Click "New site from Git" and select your repository.
+4. Configure the build settings:  
+   * Build Command: `npm run build`  
+   * Publish Directory: `.next`
+5. Add the environment variables under "Site settings" → "Environment variables":  
+   * `NEXT_PUBLIC_SUPABASE_URL`  
+   * `NEXT_PUBLIC_SUPABASE_ANON_KEY`  
+   * Any other required variables
+6. Click "Deploy site" and wait for the build to complete.
+
+### Important Deployment Notes
+
+1. Ensure your Supabase project has the correct authentication settings:  
+   * Enable Email Auth in the Supabase Dashboard  
+   * Configure the Site URL in Supabase Auth settings to match your deployed URL  
+   * Set up any necessary redirect URLs for authentication
+2. Update CORS settings in Supabase if needed, to allow requests from your deployed domain.
 
 ## Project Structure
 
@@ -102,3 +147,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## About
+
+micro-journal-chi.vercel.app
