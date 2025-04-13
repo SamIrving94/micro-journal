@@ -1,0 +1,11 @@
+{
+  "name": "microjournal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A modern, minimal journaling application with email authentication",
+  "dependencies": {
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/supabase-js": "^2.49.4",
+    "twilio": "^5.5.1"
+  }
+}
