@@ -3,14 +3,14 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { signIn } from '@/lib/supabase/client'
+import { signUp } from '@/lib/supabase/client'
 
 interface AuthError {
   message?: string;
   [key: string]: any;
 }
 
-export default function SignIn() {
+export default function SignUp() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -26,22 +26,27 @@ export default function SignIn() {
       return
     }
 
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters')
+      return
+    }
+
     try {
       setLoading(true)
-      const { error: supabaseError } = await signIn(email, password)
+      const { error: supabaseError } = await signUp(email, password)
       
       if (supabaseError) {
         const errorMessage = typeof supabaseError === 'object' && supabaseError !== null && 'message' in supabaseError 
           ? String(supabaseError.message) 
-          : 'An error occurred during sign in'
+          : 'An error occurred during sign up'
         setError(errorMessage)
         return
       }
       
-      router.push('/dashboard')
+      router.push('/auth/verify-email')
     } catch (err) {
       setError('An unexpected error occurred')
-      console.error('Sign in error:', err)
+      console.error('Sign up error:', err)
     } finally {
       setLoading(false)
     }
@@ -50,7 +55,7 @@ export default function SignIn() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold mb-6 text-center">Sign in to your account</h1>
+        <h1 className="text-2xl font-bold mb-6 text-center">Create an account</h1>
         
         {error && (
           <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
@@ -87,28 +92,20 @@ export default function SignIn() {
             />
           </div>
           
-          <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <Link href="/auth/forgot-password" className="font-medium text-primary-600 hover:text-primary-500">
-                Forgot your password?
-              </Link>
-            </div>
-          </div>
-          
           <button
             type="submit"
             disabled={loading}
             className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
           >
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? 'Signing up...' : 'Sign up'}
           </button>
         </form>
         
         <div className="mt-4 text-center">
           <p className="text-sm text-zinc-600">
-            Don't have an account?{' '}
-            <Link href="/auth/signup" className="font-medium text-primary-600 hover:text-primary-500">
-              Sign up
+            Already have an account?{' '}
+            <Link href="/auth/signin" className="font-medium text-primary-600 hover:text-primary-500">
+              Sign in
             </Link>
           </p>
         </div>

@@ -6,21 +6,35 @@ export const createClient = () => {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Missing Supabase environment variables', { 
+      urlSet: !!supabaseUrl, 
+      keySet: !!supabaseAnonKey 
+    })
     throw new Error('Missing Supabase environment variables')
   }
 
-  return createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey)
+  try {
+    return createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey)
+  } catch (error) {
+    console.error('Error creating Supabase client:', error)
+    throw error
+  }
 }
 
 export const supabase = createClient()
 
 export async function signIn(email: string, password: string) {
   try {
+    console.log('Attempting sign in with email:', email)
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
-    if (error) throw error
+    if (error) {
+      console.error('Sign in error:', error)
+      throw error
+    }
+    console.log('Sign in successful')
     return { data, error: null }
   } catch (error) {
     console.error('Sign in error:', error)
@@ -96,7 +110,10 @@ export async function updatePassword(password: string) {
 export async function getUser() {
   try {
     const { data: { user }, error } = await supabase.auth.getUser()
-    if (error) throw error
+    if (error) {
+      console.error('Get user error:', error)
+      throw error
+    }
     return { user, error: null }
   } catch (error) {
     console.error('Get user error:', error)

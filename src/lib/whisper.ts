@@ -1,4 +1,4 @@
-import twilioClient from '../twilio/client';
+import { Twilio } from 'twilio';
 
 export async function transcribeAudio(audioId: string): Promise<string> {
   try {
