@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  // Only return the first few characters of sensitive values for security
+  // Only show if certain environment variables are set, not their values
+  const envStatus = {
+    NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  };
+
   return NextResponse.json({ 
-    supabaseUrl: supabaseUrl ? 'Set correctly' : 'Missing',
-    supabaseAnonKey: supabaseAnonKey ? 'Set correctly (starts with: ' + supabaseAnonKey.substring(0, 10) + '...)' : 'Missing',
-    appUrl: process.env.NEXT_PUBLIC_APP_URL
+    status: 'OK',
+    envStatus,
   });
 } 

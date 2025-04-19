@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { signIn } from '@/lib/supabase/client'
@@ -16,6 +16,22 @@ export default function SignIn() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [envStatus, setEnvStatus] = useState<any>(null)
+
+  useEffect(() => {
+    // Check environment variables
+    fetch('/api/debug-env')
+      .then(res => res.json())
+      .then(data => {
+        setEnvStatus(data.envStatus);
+        if (!data.envStatus.NEXT_PUBLIC_SUPABASE_URL || !data.envStatus.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+          console.error('Missing Supabase environment variables');
+        }
+      })
+      .catch(err => {
+        console.error('Error checking environment variables:', err);
+      });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,9 +44,11 @@ export default function SignIn() {
 
     try {
       setLoading(true)
+      console.log('Signing in with:', email);
       const { error: supabaseError } = await signIn(email, password)
       
       if (supabaseError) {
+        console.error('Sign in error details:', supabaseError);
         const errorMessage = typeof supabaseError === 'object' && supabaseError !== null && 'message' in supabaseError 
           ? String(supabaseError.message) 
           : 'An error occurred during sign in'
@@ -38,10 +56,11 @@ export default function SignIn() {
         return
       }
       
+      console.log('Sign in successful, redirecting to dashboard');
       router.push('/dashboard')
     } catch (err) {
+      console.error('Unexpected sign in error:', err)
       setError('An unexpected error occurred')
-      console.error('Sign in error:', err)
     } finally {
       setLoading(false)
     }
@@ -55,6 +74,12 @@ export default function SignIn() {
         {error && (
           <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
             {error}
+          </div>
+        )}
+        
+        {envStatus && !envStatus.NEXT_PUBLIC_SUPABASE_URL && (
+          <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
+            Warning: Supabase URL is not configured. Authentication may not work.
           </div>
         )}
         
