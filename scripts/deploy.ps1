@@ -1,116 +1,9 @@
 #!/usr/bin/env pwsh
-# MicroJournal Deployment Script (Windows PowerShell version)
-# This script deploys the MicroJournal application in a Windows environment
+# Microjournal Deployment Script for Windows
+# This script validates the deployment environment and deploys to Vercel
 
 # Exit on error
 $ErrorActionPreference = "Stop"
-
-# Function for colored output
-function Write-ColorOutput {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Message,
-        [Parameter(Mandatory=$true)]
-        [string]$Color
-    )
-    
-    $originalColor = $host.UI.RawUI.ForegroundColor
-    $host.UI.RawUI.ForegroundColor = $Color
-    Write-Output $Message
-    $host.UI.RawUI.ForegroundColor = $originalColor
-}
-
-Write-ColorOutput "Starting MicroJournal deployment..." "Green"
-
-# Check for required environment variables
-$required_vars = @(
-    "NEXT_PUBLIC_SUPABASE_URL",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    "NEXT_PUBLIC_APP_URL",
-    "TWILIO_ACCOUNT_SID",
-    "TWILIO_AUTH_TOKEN",
-    "TWILIO_WHATSAPP_FROM",
-    "TWILIO_PHONE_NUMBER",
-    "WHATSAPP_VERIFY_TOKEN",
-    "OPENAI_API_KEY"
-)
-
-Write-ColorOutput "Checking environment variables..." "Yellow"
-$missing_vars = @()
-foreach ($var in $required_vars) {
-    if (-not (Get-Item "env:$var" -ErrorAction SilentlyContinue)) {
-        Write-ColorOutput "Error: $var is not set" "Red"
-        $missing_vars += $var
-    }
-}
-
-if ($missing_vars.Count -gt 0) {
-    Write-ColorOutput "Please set the missing environment variables before deploying." "Red"
-    exit 1
-}
-
-# Install dependencies
-Write-ColorOutput "Installing dependencies..." "Yellow"
-npm install
-
-# Build the application
-Write-ColorOutput "Building the application..." "Yellow"
-npm run build
-
-# Run database migrations
-Write-ColorOutput "Running database migrations..." "Yellow"
-npm run migrate
-
-# Configure Twilio webhook
-Write-ColorOutput "Configuring Twilio webhook..." "Yellow"
-$base_url = $env:NEXT_PUBLIC_APP_URL
-if (-not $base_url) {
-    $base_url = "https://your-app-url.com" # Default value if not set
-    Write-ColorOutput "Warning: NEXT_PUBLIC_APP_URL not set. Using default value: $base_url" "Yellow"
-}
-
-Write-ColorOutput "Note: In PowerShell, you'll need to configure Twilio webhooks via the Twilio Dashboard or using an HTTP request library. The example below shows the URLs to configure:" "Yellow"
-Write-Output "SMS URL: $base_url/api/whatsapp/webhook"
-Write-Output "Voice URL: $base_url/api/whatsapp/webhook"
-Write-Output "Status Callback: $base_url/api/whatsapp/webhook/status"
-Write-Output "WhatsApp Webhook URL: $base_url/api/whatsapp/webhook"
-
-# Start the production server
-Write-ColorOutput "Starting production server..." "Yellow"
-# Start the server in the background
-Start-Process npm -ArgumentList "start" -NoNewWindow
-
-# Run health check
-Write-ColorOutput "Running health check..." "Yellow"
-$healthUrl = "$base_url/api/health"
-Write-Output "Checking health at: $healthUrl"
-
-# Wait a moment for the server to start
-Start-Sleep -Seconds 5
-
-try {
-    $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing
-    if ($response.Content -like "*ok*") {
-        Write-ColorOutput "Health check passed!" "Green"
-    } else {
-        Write-ColorOutput "Health check failed: Unexpected response" "Red"
-        exit 1
-    }
-} catch {
-    Write-ColorOutput "Health check failed: $_" "Red"
-    exit 1
-}
-
-Write-ColorOutput "Deployment completed successfully!" "Green"
-Write-ColorOutput "Please verify the following:" "Yellow"
-Write-Output "1. WhatsApp webhook is properly configured"
-Write-Output "2. Database migrations completed successfully"
-Write-Output "3. Environment variables are correctly set"
-Write-Output "4. Production server is running"
-Write-Output "5. Health check endpoint is responding"
-
-# Microjournal Deployment Script for Windows
-# This script validates the deployment environment and deploys to Vercel
 
 # ANSI color codes for PowerShell
 $ESC = [char]27
@@ -164,6 +57,34 @@ try {
     Write-Host "$($colors.Green)✓ Vercel CLI installed successfully$($colors.Reset)"
 }
 
+# Check for required environment variables
+$required_vars = @(
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "NEXT_PUBLIC_APP_URL",
+    "TWILIO_ACCOUNT_SID",
+    "TWILIO_AUTH_TOKEN",
+    "TWILIO_WHATSAPP_FROM",
+    "TWILIO_PHONE_NUMBER",
+    "WHATSAPP_VERIFY_TOKEN",
+    "OPENAI_API_KEY"
+)
+
+Write-Host "$($colors.Cyan)$($colors.Bold)`nChecking environment variables...$($colors.Reset)"
+$missing_vars = @()
+foreach ($var in $required_vars) {
+    if (-not (Get-Item "env:$var" -ErrorAction SilentlyContinue)) {
+        Write-Host "$($colors.Yellow)⚠ Warning: $var is not set$($colors.Reset)"
+        $missing_vars += $var
+    } else {
+        Write-Host "$($colors.Green)✓ $var is set$($colors.Reset)"
+    }
+}
+
+if ($missing_vars.Count -gt 0) {
+    Write-Host "$($colors.Yellow)Some environment variables are missing. They will need to be set in Vercel deployment.$($colors.Reset)"
+}
+
 # Run the deployment check script
 Write-Host "$($colors.Cyan)$($colors.Bold)`nRunning deployment validation...$($colors.Reset)"
 node ./scripts/check-deployment.js
@@ -188,6 +109,20 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "$($colors.Red)✗ Build failed. Please fix the build errors before deploying.$($colors.Reset)"
     exit 1
 }
+
+# Configure Twilio webhook
+$base_url = $env:NEXT_PUBLIC_APP_URL
+if (-not $base_url) {
+    $base_url = "https://your-app-url.com" # Default value if not set
+    Write-Host "$($colors.Yellow)⚠ Warning: NEXT_PUBLIC_APP_URL not set. Using default value: $base_url$($colors.Reset)"
+}
+
+Write-Host "$($colors.Cyan)$($colors.Bold)`nTwilio Webhook Configuration:$($colors.Reset)"
+Write-Host "$($colors.Yellow)Note: Configure these webhook URLs in your Twilio Dashboard:$($colors.Reset)"
+Write-Host "SMS URL: $base_url/api/whatsapp/webhook"
+Write-Host "Voice URL: $base_url/api/whatsapp/webhook"
+Write-Host "Status Callback: $base_url/api/whatsapp/webhook/status"
+Write-Host "WhatsApp Webhook URL: $base_url/api/whatsapp/webhook"
 
 # Ask for deployment confirmation
 Write-Host "$($colors.Yellow)$($colors.Bold)`nReady to deploy to Vercel.$($colors.Reset)"
@@ -214,6 +149,10 @@ if ($confirmation -eq "y" -or $confirmation -eq "Y") {
     }
     
     Write-Host "$($colors.Green)$($colors.Bold)`n✓ Deployment completed successfully!$($colors.Reset)"
+    Write-Host "$($colors.Yellow)$($colors.Bold)`nPost-Deployment Checklist:$($colors.Reset)"
+    Write-Host "1. Configure Twilio webhooks with your deployment URL"
+    Write-Host "2. Verify environment variables are set in Vercel"
+    Write-Host "3. Test the application functionality"
 } else {
     Write-Host "$($colors.Yellow)$($colors.Bold)`nDeployment cancelled.$($colors.Reset)"
 } 

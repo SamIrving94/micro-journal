@@ -1,6 +1,6 @@
-# Microjournal v2
+# Microjournal
 
-Microjournal is a modern journaling application that allows users to create, manage, and review their daily journal entries with a clean, intuitive interface. The application also features WhatsApp integration for receiving journal entries directly from messaging.
+Microjournal is a modern journaling application that allows users to create, manage, and review their daily journal entries with a clean, intuitive interface. The application features both web access and messaging integration through SMS and WhatsApp.
 
 ## Features
 
@@ -8,6 +8,7 @@ Microjournal is a modern journaling application that allows users to create, man
 - **Journal Entries**: Create, view, and manage daily journal entries
 - **User Settings**: Configure personal preferences including phone number for notifications
 - **WhatsApp Integration**: Send journal entries via WhatsApp
+- **SMS Integration**: Send journal entries via SMS
 - **Responsive Design**: Works seamlessly on desktop and mobile devices
 
 ## Tech Stack
@@ -24,7 +25,7 @@ Microjournal is a modern journaling application that allows users to create, man
 - Node.js (v18 or later)
 - npm or yarn
 - Supabase account (for backend services)
-- Twilio account (for WhatsApp integration)
+- Twilio account (for WhatsApp/SMS integration)
 
 ### Installation
 
@@ -32,7 +33,7 @@ Microjournal is a modern journaling application that allows users to create, man
 
 ```bash
 git clone https://github.com/yourusername/microjournal.git
-cd microjournal-v2
+cd microjournal
 ```
 
 2. Install dependencies:
@@ -61,6 +62,10 @@ TWILIO_ACCOUNT_SID=your-twilio-account-sid
 TWILIO_AUTH_TOKEN=your-twilio-auth-token
 TWILIO_PHONE_NUMBER=your-twilio-phone-number
 TWILIO_WHATSAPP_FROM=your-twilio-whatsapp-number
+WHATSAPP_VERIFY_TOKEN=your-verify-token
+
+# OpenAI Configuration
+OPENAI_API_KEY=your-openai-api-key
 ```
 
 5. Start the development server:
@@ -76,7 +81,7 @@ yarn dev
 ## Project Structure
 
 ```
-microjournal-v2/
+microjournal/
 ├── public/                   # Static assets
 ├── src/
 │   ├── app/                  # Next.js App Router
@@ -94,16 +99,21 @@ microjournal-v2/
 │   ├── lib/                  # Utilities and libraries
 │   │   ├── services/         # Service modules
 │   │   ├── supabase/         # Supabase client and utilities
-│   │   └── types/            # TypeScript types
+│   │   ├── types/            # TypeScript types
+│   │   └── whatsapp/         # WhatsApp integration
+│   ├── api/                  # API utilities
+│   ├── types/                # Global TypeScript types
 │   └── styles/               # Global styles
 ├── scripts/                  # Utility scripts
 │   ├── check-deployment.js   # Deployment validation script
 │   ├── deploy.ps1            # Windows deployment script
 │   └── deploy.sh             # Unix deployment script
+├── supabase/                 # Supabase migrations
 ├── .env.example              # Example environment variables
 ├── .gitignore                # Git ignore file
 ├── next.config.js            # Next.js configuration
 ├── package.json              # Package dependencies
+├── CHANGELOG.md              # Project changes
 ├── README.md                 # Project documentation (this file)
 ├── DEPLOYMENT.md             # Deployment guide
 ├── tailwind.config.js        # Tailwind CSS configuration
@@ -119,28 +129,28 @@ The application uses the following tables in Supabase:
 
 Contains user information (managed by Supabase Auth).
 
+### Phone Mappings Table
+
+| Column       | Type      | Description                         |
+|--------------|-----------|-------------------------------------|
+| id           | uuid      | Primary key                         |
+| user_id      | uuid      | Foreign key to auth.users table     |
+| phone_number | text      | User's phone number                 |
+| created_at   | timestamp | When the mapping was created        |
+| updated_at   | timestamp | When the mapping was last modified  |
+
 ### Journal Entries Table
 
 | Column       | Type      | Description                      |
 |--------------|-----------|----------------------------------|
 | id           | uuid      | Primary key                      |
-| user_id      | uuid      | Foreign key to users table       |
+| user_id      | uuid      | Foreign key to auth.users table  |
+| phone_number | text      | User's phone number (optional)   |
 | content      | text      | Journal entry content            |
-| mood         | text      | User's mood for the entry        |
+| source       | text      | Entry source (web, sms, whatsapp)|
 | tags         | text[]    | Array of tags for the entry      |
 | created_at   | timestamp | When the entry was created       |
 | updated_at   | timestamp | When the entry was last modified |
-
-### User Settings Table
-
-| Column                  | Type      | Description                   |
-|-------------------------|-----------|-------------------------------|
-| id                      | uuid      | Primary key                   |
-| user_id                 | uuid      | Foreign key to users table    |
-| phone_number            | text      | User's phone number           |
-| notification_preferences| jsonb     | User's notification settings  |
-| created_at              | timestamp | When the settings were created|
-| updated_at              | timestamp | When settings were modified   |
 
 ## Key Features Explained
 
@@ -156,9 +166,13 @@ Users can create daily journal entries, view past entries, and search/filter thr
 
 Users can send journal entries via WhatsApp, which will be automatically added to their account.
 
+### SMS Integration
+
+Users can send journal entries via SMS, which will be automatically added to their account.
+
 ### User Settings
 
-Users can configure various preferences, including their phone number for WhatsApp integration.
+Users can configure various preferences, including their phone number for messaging integration.
 
 ## Deployment
 
@@ -178,7 +192,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- The original Microjournal project that served as a foundation
 - Next.js team for their amazing framework
 - Supabase for their excellent backend service
 - Twilio for their messaging APIs

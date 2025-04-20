@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUser } from '@/lib/supabase/client';
 import { getJournalEntries, createJournalEntry, deleteJournalEntry } from '@/lib/services/journal';
-import { JournalEntry } from '@/lib/types/journal';
+import { JournalEntry } from '@/types/journal';
 
 export default function JournalPage() {
   const router = useRouter();
