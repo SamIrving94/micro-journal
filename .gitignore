@@ -14,11 +14,8 @@
 /build
 
 # Environment files
+.env*.local
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
 
 # Debug logs
 npm-debug.log*
@@ -43,5 +40,4 @@ Thumbs.db
 
 # Typescript
 *.tsbuildinfo
-next-env.d.ts 
-.vercel
+next-env.d.ts
