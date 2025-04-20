@@ -1,5 +1,5 @@
 {
-  "name": "microjournal-v2",
+  "name": "microjournal",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,7 +12,8 @@
     "migrate": "prisma migrate deploy",
     "check-deploy": "node scripts/check-deployment.js",
     "deploy": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1",
-    "deploy:unix": "bash scripts/deploy.sh"
+    "deploy:unix": "bash scripts/deploy.sh",
+    "git-sync": "powershell -ExecutionPolicy Bypass -File scripts/git-sync.ps1"
   },
   "dependencies": {
     "@auth/supabase-adapter": "^1.8.0",
