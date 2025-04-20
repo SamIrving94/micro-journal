@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { signUp } from '@/lib/supabase/client'
+import { signUp } from '@/api/auth'
 
 interface AuthError {
   message?: string;

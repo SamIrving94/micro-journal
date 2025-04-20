@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { signIn, signUp, resetPassword, updatePassword } from '@/lib/supabase/client';
+import { signUp as apiSignUp } from '@/api/auth';
 
 // Define a type for possible errors
 interface AuthError {
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     }
 
     // Create user in auth system
-    const { data, error } = await signUp(email, password);
+    const { data, error } = await apiSignUp(email, password);
     
     if (error) {
       const errorMessage = typeof error === 'object' && error !== null && 'message' in error 

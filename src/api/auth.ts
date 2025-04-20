@@ -11,6 +11,11 @@ interface AuthResponse {
   error: Error | null;
 }
 
+interface SignUpResult {
+  data: { user: any } | null;
+  error: Error | null;
+}
+
 interface Error {
   message: string;
 }
@@ -64,6 +69,43 @@ export async function createUser(email: string, password: string): Promise<AuthR
     return {
       user: null,
       error: { message: 'Internal server error during user creation' }
+    };
+  }
+}
+
+/**
+ * Signs up a new user directly using supabase auth
+ * @param email User's email
+ * @param password User's password
+ * @returns Promise with the signup result
+ */
+export async function signUp(email: string, password: string): Promise<SignUpResult> {
+  try {
+    const supabase = createClient();
+    const signUpResult = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/verify-email`,
+      }
+    });
+    
+    if (signUpResult.error) {
+      return {
+        data: null,
+        error: { message: signUpResult.error.message }
+      };
+    }
+    
+    return {
+      data: signUpResult.data,
+      error: null
+    };
+  } catch (error) {
+    console.error('Error in signUp:', error);
+    return {
+      data: null,
+      error: { message: 'Internal server error during sign up' }
     };
   }
 }
