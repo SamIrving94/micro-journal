@@ -1,5 +1,6 @@
 'use client'
 
+import { useClerk } from "@clerk/nextjs";
 import Link from 'next/link'
 
 export default function VerifyEmailPage() {

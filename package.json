@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@auth/supabase-adapter": "^1.8.0",
+    "@clerk/nextjs": "^6.16.0",
     "@prisma/client": "^5.0.0",
     "@radix-ui/react-slot": "^1.2.0",
     "@radix-ui/react-toast": "^1.2.10",

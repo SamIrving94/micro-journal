@@ -3,20 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Book, MessageSquare, Settings, User } from 'lucide-react'
-import { getUser } from '@/lib/supabase/client'
+import { Book, MessageSquare, Settings } from 'lucide-react'
+import { useAuth } from '@clerk/nextjs'
 
 export default function Home() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const { isLoaded, isSignedIn } = useAuth()
   const router = useRouter()
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { user } = await getUser()
-      setIsAuthenticated(!!user)
-    }
-    checkAuth()
-  }, [])
 
   const features = [
     {
@@ -54,7 +46,7 @@ export default function Home() {
                 A simple, beautiful way to journal your thoughts and connect your journaling experience with messaging apps.
               </p>
               <div className="mt-10 max-w-sm mx-auto sm:flex sm:justify-center md:mt-12">
-                {isAuthenticated === false && (
+                {isLoaded && !isSignedIn && (
                   <>
                     <div className="rounded-md shadow">
                       <Link 
@@ -75,7 +67,7 @@ export default function Home() {
                   </>
                 )}
 
-                {isAuthenticated === true && (
+                {isLoaded && isSignedIn && (
                   <div className="rounded-md shadow">
                     <Link 
                       href="/journal" 
@@ -131,14 +123,14 @@ export default function Home() {
             <p className="mt-4 text-lg leading-6 text-indigo-200">
               Join thousands of users who are already journaling with Microjournal.
             </p>
-            {isAuthenticated === false ? (
+            {isLoaded && !isSignedIn ? (
               <Link
                 href="/auth/signup"
                 className="mt-8 w-full inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-indigo-600 bg-white hover:bg-indigo-50 sm:w-auto"
               >
                 Sign up for free
               </Link>
-            ) : isAuthenticated === true ? (
+            ) : isLoaded && isSignedIn ? (
               <Link
                 href="/journal"
                 className="mt-8 w-full inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-indigo-600 bg-white hover:bg-indigo-50 sm:w-auto"

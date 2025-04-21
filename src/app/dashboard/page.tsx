@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useSupabaseClient, useUser } from '@supabase/auth-helpers-react'
+import { useUser, useClerk } from "@clerk/nextjs"
 import { getJournalEntries, createJournalEntry } from '@/lib/services/journal'
 import { JournalEntry } from '@/types/journal'
 
 export default function Dashboard() {
   const router = useRouter()
-  const supabase = useSupabaseClient()
-  const user = useUser()
+  const { user } = useUser()
+  const { signOut } = useClerk()
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [newEntry, setNewEntry] = useState('')
   const [loading, setLoading] = useState(true)
@@ -18,12 +18,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) {
-      router.push('/auth/signin')
       return
     }
     
     loadEntries(user.id)
-  }, [user, router])
+  }, [user])
 
   const loadEntries = async (userId: string) => {
     setLoading(true)
@@ -85,14 +84,10 @@ export default function Dashboard() {
 
   const handleSignOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut()
-      if (error) {
-        console.error('Sign out error:', error)
-      }
-      router.push('/auth/signin')
+      await signOut()
+      router.push('/')
     } catch (err) {
       console.error('Unexpected sign out error:', err)
-      router.push('/auth/signin')
     }
   }
 
