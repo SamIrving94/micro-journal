@@ -1,232 +1,365 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { getUser } from '@/lib/supabase/client';
-import { getUserSettings, updateUserSettings, createUserSettings } from '@/lib/services/settings';
-import { UserSettingsInput } from '@/lib/types/settings';
+import { TimePicker } from '@/components/forms/TimePicker';
+import { TimezonePicker } from '@/components/forms/TimezonePicker';
+import { WhatsAppVerification } from '@/components/forms/WhatsAppVerification';
+import { UserPreferences } from '@/schemas/preferences';
+import { logger } from '@/lib/logger';
 
-export default function Settings() {
+export default function SettingsPage() {
   const router = useRouter();
-  const [userId, setUserId] = useState<string | null>(null);
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [saveAttempted, setSaveAttempted] = useState(false);
-  const [notificationPreferences, setNotificationPreferences] = useState({
-    email: true,
-    sms: false,
-    whatsapp: false
+  const { isLoaded, isSignedIn, user } = useUser();
+  const [preferences, setPreferences] = useState<UserPreferences>({
+    notifications_enabled: true,
+    prompt_time: '09:00',
+    timezone: 'UTC',
+    prompt_categories: ['gratitude', 'reflection', 'learning'],
+    whatsapp_verified: false,
+    phone_number: null
   });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [testingPrompt, setTestingPrompt] = useState(false);
+  const [testPromptResult, setTestPromptResult] = useState<{ success: boolean; message: string } | null>(null);
+  const isDevelopment = process.env.NODE_ENV === 'development';
 
+  // Categories available for selection
+  const availableCategories = [
+    { id: 'gratitude', name: 'Gratitude' },
+    { id: 'reflection', name: 'Daily Reflection' },
+    { id: 'learning', name: 'Learning' },
+    { id: 'emotions', name: 'Emotions' },
+    { id: 'future', name: 'Future Planning' },
+  ];
+
+  // Fetch current preferences
   useEffect(() => {
-    async function checkSession() {
-      setLoading(true);
-      try {
-        const { user, error } = await getUser();
-        
-        if (error || !user) {
-          console.error('Session check error:', error);
-          router.push('/auth/signin');
-          return;
-        }
-        
-        setUserId(user.id);
-        
-        // Fetch user settings
-        if (user.id) {
-          const { data: settings, error: settingsError } = await getUserSettings(user.id);
-          
-          if (settingsError) {
-            console.error('Error fetching settings:', settingsError);
-            setMessage({ type: 'error', text: 'Failed to load settings' });
-          } else if (settings) {
-            if (settings.phone_number) {
-              setPhoneNumber(settings.phone_number);
-            }
-            if (settings.notification_preferences) {
-              setNotificationPreferences(settings.notification_preferences);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error in settings page:', error);
-        setMessage({ type: 'error', text: 'An unexpected error occurred' });
-      } finally {
-        setLoading(false);
-      }
-    }
+    if (!isLoaded) return;
     
-    checkSession();
-  }, [router]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaveAttempted(true);
-    
-    if (!phoneNumber.trim()) {
-      setMessage({ type: 'error', text: 'Please enter a valid phone number' });
-      return;
-    }
-    
-    if (!userId) {
-      setMessage({ type: 'error', text: 'User ID not found. Please sign in again.' });
+    if (!isSignedIn) {
       router.push('/auth/signin');
       return;
     }
     
+    fetchPreferences();
+  }, [isLoaded, isSignedIn, router]);
+
+  // Fetch preferences from API
+  const fetchPreferences = async () => {
     setLoading(true);
-    setMessage(null);
+    setError(null);
     
     try {
-      // First try to update in case settings already exist
-      const { error: updateError } = await updateUserSettings(userId, { 
-        phone_number: phoneNumber,
-        notification_preferences: notificationPreferences
-      });
+      const response = await fetch('/api/preferences');
+      const data = await response.json();
       
-      // If update fails because settings don't exist, create them
-      if (updateError) {
-        const settingsInput: UserSettingsInput = {
-          user_id: userId,
-          phone_number: phoneNumber,
-          notification_preferences: notificationPreferences
-        };
-        
-        const { error: createError } = await createUserSettings(settingsInput);
-        
-        if (createError) {
-          throw createError;
-        }
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load preferences');
       }
       
-      setMessage({ type: 'success', text: 'Settings saved successfully!' });
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      setMessage({ type: 'error', text: 'Failed to save settings. Please try again.' });
+      setPreferences(data.data || preferences);
+    } catch (err) {
+      logger.error('Error fetching preferences', { error: err });
+      setError(err instanceof Error ? err.message : 'Failed to load preferences');
     } finally {
       setLoading(false);
     }
   };
 
+  // Save preferences to API
+  const savePreferences = async () => {
+    setSaving(true);
+    setError(null);
+    setSaveSuccess(false);
+    
+    try {
+      const response = await fetch('/api/preferences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(preferences),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save preferences');
+      }
+      
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      logger.error('Error saving preferences', { error: err });
+      setError(err instanceof Error ? err.message : 'Failed to save preferences');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Handle WhatsApp verification completion
+  const handleWhatsAppVerified = (phoneNumber: string) => {
+    setPreferences({
+      ...preferences,
+      phone_number: phoneNumber,
+      whatsapp_verified: true,
+    });
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  // Handle form submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    savePreferences();
+  };
+
+  // Handle category toggle
+  const toggleCategory = (categoryId: string) => {
+    if (preferences.prompt_categories.includes(categoryId)) {
+      setPreferences({
+        ...preferences,
+        prompt_categories: preferences.prompt_categories.filter(id => id !== categoryId)
+      });
+    } else {
+      setPreferences({
+        ...preferences,
+        prompt_categories: [...preferences.prompt_categories, categoryId]
+      });
+    }
+  };
+
+  // Handle sending a test prompt
+  const handleTestPrompt = async () => {
+    setTestingPrompt(true);
+    setTestPromptResult(null);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/debug/send-test-prompt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send test prompt');
+      }
+      
+      setTestPromptResult({
+        success: true,
+        message: 'Test prompt sent successfully to your WhatsApp number!'
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send test prompt';
+      setTestPromptResult({
+        success: false,
+        message: errorMessage
+      });
+    } finally {
+      setTestingPrompt(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="animate-pulse space-y-4">
+          <div className="h-10 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-40 bg-gray-200 rounded"></div>
+          <div className="h-40 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Settings</h1>
-        
-        {message && (
-          <div 
-            className={`p-4 mb-6 rounded-md ${
-              message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-            }`}
-          >
-            {message.text}
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <h1 className="text-3xl font-bold text-gray-900 mb-8">Settings</h1>
+      
+      {error && (
+        <div className="mb-6 rounded-md bg-red-50 p-4">
+          <div className="flex">
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Error</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{error}</p>
+              </div>
+            </div>
           </div>
-        )}
+        </div>
+      )}
+      
+      {saveSuccess && (
+        <div className="mb-6 rounded-md bg-green-50 p-4">
+          <div className="flex">
+            <div className="ml-3">
+              <p className="text-sm font-medium text-green-800">Settings saved successfully</p>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {testPromptResult && (
+        <div className={`mb-6 rounded-md ${testPromptResult.success ? 'bg-green-50' : 'bg-red-50'} p-4`}>
+          <div className="flex">
+            <div className="ml-3">
+              <p className={`text-sm font-medium ${testPromptResult.success ? 'text-green-800' : 'text-red-800'}`}>
+                {testPromptResult.message}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* WhatsApp Integration Section */}
+        <div className="bg-white shadow rounded-lg p-6">
+          <h2 className="text-xl font-medium text-gray-900 mb-4">WhatsApp Integration</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Verify your WhatsApp number to receive daily prompts and send journal entries directly through WhatsApp.
+          </p>
+          
+          <WhatsAppVerification 
+            preferences={preferences} 
+            onVerified={handleWhatsAppVerified} 
+          />
+          
+          {/* Test Daily Prompt Button (Development Only) */}
+          {isDevelopment && preferences.whatsapp_verified && preferences.phone_number && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Development Testing</h3>
+              <button
+                type="button"
+                onClick={handleTestPrompt}
+                disabled={testingPrompt}
+                className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              >
+                {testingPrompt ? 'Sending...' : 'Send Test Daily Prompt'}
+              </button>
+              <p className="mt-2 text-xs text-gray-500">
+                This will immediately send a test prompt to your WhatsApp number.
+              </p>
+            </div>
+          )}
+        </div>
         
-        <div className="bg-white shadow rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Notification Preferences</h2>
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number
+        {/* Notification Preferences */}
+        <div className="bg-white shadow rounded-lg p-6">
+          <h2 className="text-xl font-medium text-gray-900 mb-4">Daily Prompts</h2>
+          
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-medium text-gray-900">Enable daily prompts</h3>
+                <p className="text-sm text-gray-500">
+                  Receive daily journal prompts at your specified time
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreferences({
+                  ...preferences,
+                  notifications_enabled: !preferences.notifications_enabled
+                })}
+                className={`${
+                  preferences.notifications_enabled ? 'bg-indigo-600' : 'bg-gray-200'
+                } relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`${
+                    preferences.notifications_enabled ? 'translate-x-5' : 'translate-x-0'
+                  } inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
+                />
+              </button>
+            </div>
+            
+            <div>
+              <label htmlFor="prompt_time" className="block text-sm font-medium text-gray-700">
+                Prompt delivery time
               </label>
-              <input
-                id="phoneNumber"
-                type="tel"
-                className={`w-full px-3 py-2 border ${
-                  saveAttempted && !phoneNumber.trim() ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500`}
-                placeholder="+1 (555) 555-5555"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-              />
-              {saveAttempted && !phoneNumber.trim() && (
-                <p className="mt-1 text-sm text-red-600">Phone number is required</p>
-              )}
-              <p className="mt-1 text-sm text-gray-500">
-                Used for SMS and WhatsApp notifications
+              <div className="mt-1">
+                <TimePicker
+                  id="prompt_time"
+                  value={preferences.prompt_time}
+                  onChange={(time) => setPreferences({ ...preferences, prompt_time: time })}
+                />
+              </div>
+              <p className="mt-2 text-sm text-gray-500">
+                Time when you want to receive your daily prompts
               </p>
             </div>
             
-            <div className="space-y-3 mb-6">
-              <div className="flex items-center">
-                <input
-                  id="email-notifications"
-                  type="checkbox"
-                  checked={notificationPreferences.email}
-                  onChange={(e) =>
-                    setNotificationPreferences({
-                      ...notificationPreferences,
-                      email: e.target.checked,
-                    })
-                  }
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+            <div>
+              <label htmlFor="timezone" className="block text-sm font-medium text-gray-700">
+                Your timezone
+              </label>
+              <div className="mt-1">
+                <TimezonePicker
+                  id="timezone"
+                  value={preferences.timezone}
+                  onChange={(timezone) => setPreferences({ ...preferences, timezone })}
                 />
-                <label htmlFor="email-notifications" className="ml-3 text-sm text-gray-700">
-                  Email Notifications
-                </label>
               </div>
-              
-              <div className="flex items-center">
-                <input
-                  id="sms-notifications"
-                  type="checkbox"
-                  checked={notificationPreferences.sms}
-                  onChange={(e) =>
-                    setNotificationPreferences({
-                      ...notificationPreferences,
-                      sms: e.target.checked,
-                    })
-                  }
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                />
-                <label htmlFor="sms-notifications" className="ml-3 text-sm text-gray-700">
-                  SMS Notifications
-                </label>
-              </div>
-              
-              <div className="flex items-center">
-                <input
-                  id="whatsapp-notifications"
-                  type="checkbox"
-                  checked={notificationPreferences.whatsapp}
-                  onChange={(e) =>
-                    setNotificationPreferences({
-                      ...notificationPreferences,
-                      whatsapp: e.target.checked,
-                    })
-                  }
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                />
-                <label htmlFor="whatsapp-notifications" className="ml-3 text-sm text-gray-700">
-                  WhatsApp Notifications
-                </label>
-              </div>
+              <p className="mt-2 text-sm text-gray-500">
+                Select your timezone to ensure prompts are delivered at the right time
+              </p>
             </div>
-            
-            <div className="mt-6">
-              <button
-                type="submit"
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                disabled={loading}
-              >
-                {loading ? 'Saving...' : 'Save Settings'}
-              </button>
-            </div>
-          </form>
+          </div>
         </div>
         
+        {/* Prompt Categories */}
         <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Account</h2>
+          <h2 className="text-xl font-medium text-gray-900 mb-4">Prompt Categories</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Choose the types of prompts you'd like to receive
+          </p>
+          
+          <div className="space-y-4">
+            {availableCategories.map((category) => (
+              <div key={category.id} className="flex items-center">
+                <input
+                  id={`category-${category.id}`}
+                  name={`category-${category.id}`}
+                  type="checkbox"
+                  checked={preferences.prompt_categories.includes(category.id)}
+                  onChange={() => toggleCategory(category.id)}
+                  className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                />
+                <label htmlFor={`category-${category.id}`} className="ml-3 text-sm text-gray-700">
+                  {category.name}
+                </label>
+              </div>
+            ))}
+            
+            {preferences.prompt_categories.length === 0 && (
+              <p className="text-sm text-red-500">
+                Please select at least one category to receive prompts
+              </p>
+            )}
+          </div>
+        </div>
+        
+        {/* Submit Button */}
+        <div className="flex justify-end">
           <button
-            onClick={() => router.push('/dashboard')}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            type="submit"
+            disabled={saving || preferences.prompt_categories.length === 0}
+            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
           >
-            Back to Dashboard
+            {saving ? 'Saving...' : 'Save Settings'}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 } 

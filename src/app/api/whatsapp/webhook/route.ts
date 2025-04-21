@@ -1,18 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sendWelcomeMessage } from '../../../../lib/whatsapp/welcome-message';
-import { transcribeAudio } from '../../../../lib/whisper';
-import { mapPhoneNumberToUserId } from '../../../../lib/user-mapping';
+import { sendWelcomeMessage } from '@/lib/whatsapp/welcome-message';
+import { transcribeAudio } from '@/lib/whisper';
+import { mapPhoneNumberToUserId } from '@/lib/user-mapping';
+import { supabase } from '@/lib/supabase/client';
+import { logger } from '@/lib/logger';
 
-// Create a database-only client
-const supabase = createClient(
+// Create a database-only client for operations requiring admin rights
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
     auth: {
-      persistSession: false,
       autoRefreshToken: false,
-      detectSessionInUrl: false
+      persistSession: false
     }
   }
 );
@@ -69,9 +70,186 @@ export async function GET(request: Request): Promise<NextResponse> {
 }
 
 /**
+ * POST /api/whatsapp/webhook
+ * Handles incoming WhatsApp messages via Twilio
+ */
+export async function POST(request: NextRequest) {
+  try {
+    // Parse form data from Twilio webhook
+    const formData = await request.formData();
+    
+    // Extract message details
+    const messageId = formData.get('MessageSid') as string;
+    const from = formData.get('From') as string;
+    const body = formData.get('Body') as string;
+    const numMedia = parseInt(formData.get('NumMedia') as string || '0');
+    
+    if (!messageId || !from) {
+      logger.error('Invalid webhook payload', { messageId, from });
+      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+    
+    // Clean up the WhatsApp number format to match our stored format
+    const cleanPhoneNumber = from.replace('whatsapp:', '');
+    
+    // Find the user associated with this phone number
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('clerk_id')
+      .eq('phone_number', cleanPhoneNumber)
+      .single();
+    
+    if (userError || !userData) {
+      logger.error('User not found for phone number', { 
+        phoneNumber: cleanPhoneNumber, 
+        error: userError 
+      });
+      
+      // Still return OK to Twilio
+      return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/xml'
+        }
+      });
+    }
+    
+    // Get the user ID
+    const userId = userData.clerk_id;
+    
+    // Handle media if present (voice notes)
+    let content = body || '';
+    
+    if (numMedia > 0) {
+      // Get the media URL (assuming it's a voice note)
+      const mediaUrl = formData.get('MediaUrl0') as string;
+      
+      if (mediaUrl) {
+        try {
+          // Transcribe the audio
+          const transcription = await transcribeAudio(mediaUrl);
+          
+          if (transcription) {
+            content = transcription;
+            
+            // Log success
+            logger.info('Audio transcribed successfully', { 
+              userId, 
+              mediaUrl,
+              transcriptionLength: transcription.length 
+            });
+          }
+        } catch (transcriptionError) {
+          logger.error('Error transcribing audio', { 
+            userId, 
+            mediaUrl, 
+            error: transcriptionError 
+          });
+          
+          // Return error to user
+          return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response><Message>Sorry, we couldn\'t transcribe your audio message. Please try sending text instead.</Message></Response>', {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/xml'
+            }
+          });
+        }
+      }
+    }
+    
+    // Skip empty content
+    if (!content.trim()) {
+      logger.info('Empty message received, ignoring', { userId });
+      return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response><Message>Your message was empty. Please try again with some content.</Message></Response>', {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/xml'
+        }
+      });
+    }
+    
+    // Find the most recent prompt sent to this user
+    const { data: promptData, error: promptError } = await supabase
+      .from('sent_prompts')
+      .select('id, prompt_text')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    // Create a journal entry
+    const entryId = await createJournalEntry(
+      userId, 
+      content, 
+      promptData?.prompt_text || null
+    );
+    
+    // If this was a response to a prompt, update the prompt record
+    if (promptData && !promptError) {
+      await supabase
+        .from('sent_prompts')
+        .update({
+          response_text: content,
+          response_at: new Date().toISOString(),
+          status: 'answered'
+        })
+        .eq('id', promptData.id);
+    }
+    
+    // Respond to the user
+    return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response><Message>Your journal entry has been saved. Thank you for sharing your thoughts!</Message></Response>', {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/xml'
+      }
+    });
+  } catch (error) {
+    logger.error('Error processing WhatsApp webhook', { error });
+    
+    // Return a valid response to Twilio even on error
+    return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/xml'
+      }
+    });
+  }
+}
+
+/**
+ * Helper function to create a journal entry
+ */
+async function createJournalEntry(userId: string, content: string, promptText: string | null = null) {
+  try {
+    const entry = {
+      user_id: userId,
+      content,
+      prompt: promptText,
+      source: 'whatsapp'
+    };
+    
+    const { data, error } = await supabaseAdmin
+      .from('journal_entries')
+      .insert(entry)
+      .select('id')
+      .single();
+    
+    if (error) {
+      logger.error('Error creating journal entry', { userId, error });
+      return null;
+    }
+    
+    return data.id;
+  } catch (error) {
+    logger.error('Exception in createJournalEntry', { userId, error });
+    return null;
+  }
+}
+
+/**
  * Handle incoming messages from WhatsApp
  */
-export async function POST(request: Request): Promise<NextResponse> {
+export async function POST_OLD(request: Request): Promise<NextResponse> {
   try {
     const body = await request.json();
     
@@ -141,7 +319,7 @@ async function handleTextMessage(userId: string, from: string, content: string):
   console.log(`Received text from ${from} (userId: ${userId}): ${content.substring(0, 20)}...`);
   
   try {
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('journal_entries')
       .insert({
         user_id: userId,
@@ -173,7 +351,7 @@ async function handleVoiceMessage(userId: string, from: string, audioId: string)
     console.log(`Transcription complete: ${transcription.substring(0, 30)}...`);
     
     // Create journal entry with transcribed text
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('journal_entries')
       .insert({
         user_id: userId,

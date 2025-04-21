@@ -1,6 +1,8 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { Database } from '../types/supabase'
 
+// Create and export the Supabase client
+// This is only used for database access, not authentication (Clerk handles auth)
 export const createClient = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
@@ -10,6 +12,13 @@ export const createClient = () => {
       urlSet: !!supabaseUrl, 
       keySet: !!supabaseAnonKey 
     })
+    // Return a dummy client in development to avoid breaking the app
+    if (process.env.NODE_ENV === 'development') {
+      return createSupabaseClient<Database>(
+        'https://example.supabase.co',
+        'dummy-key'
+      )
+    }
     throw new Error('Missing Supabase environment variables')
   }
 
@@ -23,100 +32,39 @@ export const createClient = () => {
 
 export const supabase = createClient()
 
-export async function signIn(email: string, password: string) {
-  try {
-    console.log('Attempting sign in with email:', email)
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    if (error) {
-      console.error('Sign in error:', error)
-      throw error
-    }
-    console.log('Sign in successful')
-    return { data, error: null }
-  } catch (error) {
-    console.error('Sign in error:', error)
-    return { data: null, error }
-  }
+// Dummy functions that do nothing - replaced by Clerk
+// These are kept to avoid breaking existing imports
+export async function signIn() {
+  console.warn('signIn is deprecated - auth is now handled by Clerk')
+  return { data: null, error: new Error('Auth is now handled by Clerk') }
 }
 
-export async function signUp(email: string, password: string) {
-  try {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/verify-email`,
-      },
-    })
-    if (error) throw error
-    return { data, error: null }
-  } catch (error) {
-    console.error('Sign up error:', error)
-    return { data: null, error }
-  }
+export async function signUp() {
+  console.warn('signUp is deprecated - auth is now handled by Clerk')
+  return { data: null, error: new Error('Auth is now handled by Clerk') }
 }
 
 export async function signOut() {
-  try {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-    return { error: null }
-  } catch (error) {
-    console.error('Sign out error:', error)
-    return { error }
-  }
+  console.warn('signOut is deprecated - auth is now handled by Clerk')
+  return { error: null }
 }
 
 export async function getSession() {
-  try {
-    const { data: { session }, error } = await supabase.auth.getSession()
-    if (error) throw error
-    return { session, error: null }
-  } catch (error) {
-    console.error('Get session error:', error)
-    return { session: null, error }
-  }
+  console.warn('getSession is deprecated - auth is now handled by Clerk')
+  return { session: null, error: null }
 }
 
-export async function resetPassword(email: string) {
-  try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
-    })
-    if (error) throw error
-    return { error: null }
-  } catch (error) {
-    console.error('Reset password error:', error)
-    return { error }
-  }
+export async function resetPassword() {
+  console.warn('resetPassword is deprecated - auth is now handled by Clerk')
+  return { error: new Error('Auth is now handled by Clerk') }
 }
 
-export async function updatePassword(password: string) {
-  try {
-    const { error } = await supabase.auth.updateUser({
-      password,
-    })
-    if (error) throw error
-    return { error: null }
-  } catch (error) {
-    console.error('Update password error:', error)
-    return { error }
-  }
+export async function updatePassword() {
+  console.warn('updatePassword is deprecated - auth is now handled by Clerk')
+  return { error: new Error('Auth is now handled by Clerk') }
 }
 
 export async function getUser() {
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser()
-    if (error) {
-      console.error('Get user error:', error)
-      throw error
-    }
-    return { user, error: null }
-  } catch (error) {
-    console.error('Get user error:', error)
-    return { user: null, error }
-  }
+  console.warn('getUser is deprecated - auth is now handled by Clerk')
+  return { user: null, error: null }
 } 

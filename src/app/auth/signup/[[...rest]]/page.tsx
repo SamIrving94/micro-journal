@@ -16,8 +16,7 @@ export default function SignUpPage() {
               footerAction: "text-primary-600 hover:text-primary-700",
             },
           }}
-          routing="path"
-          path="/auth/signup"
+          routing="hash"
           signInUrl="/auth/signin"
           redirectUrl="/dashboard"
         />
