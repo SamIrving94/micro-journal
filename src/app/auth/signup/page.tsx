@@ -3,15 +3,11 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { signUp } from '@/api/auth'
-
-interface AuthError {
-  message?: string;
-  [key: string]: any;
-}
+import { useSupabaseClient } from '@supabase/auth-helpers-react'
 
 export default function SignUp() {
   const router = useRouter()
+  const supabase = useSupabaseClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -33,13 +29,16 @@ export default function SignUp() {
 
     try {
       setLoading(true)
-      const { error: supabaseError } = await signUp(email, password)
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/verify-email`,
+        },
+      })
       
-      if (supabaseError) {
-        const errorMessage = typeof supabaseError === 'object' && supabaseError !== null && 'message' in supabaseError 
-          ? String(supabaseError.message) 
-          : 'An error occurred during sign up'
-        setError(errorMessage)
+      if (signUpError) {
+        setError(signUpError.message || 'An error occurred during sign up')
         return
       }
       

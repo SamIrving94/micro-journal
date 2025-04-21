@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { signIn } from '@/lib/supabase/client'
+import { useSupabaseClient } from '@supabase/auth-helpers-react'
 
 interface AuthError {
   message?: string;
@@ -12,6 +12,7 @@ interface AuthError {
 
 export default function SignIn() {
   const router = useRouter()
+  const supabase = useSupabaseClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -45,14 +46,14 @@ export default function SignIn() {
     try {
       setLoading(true)
       console.log('Signing in with:', email);
-      const { error: supabaseError } = await signIn(email, password)
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
       
-      if (supabaseError) {
-        console.error('Sign in error details:', supabaseError);
-        const errorMessage = typeof supabaseError === 'object' && supabaseError !== null && 'message' in supabaseError 
-          ? String(supabaseError.message) 
-          : 'An error occurred during sign in'
-        setError(errorMessage)
+      if (signInError) {
+        console.error('Sign in error details:', signInError);
+        setError(signInError.message || 'An error occurred during sign in')
         return
       }
       

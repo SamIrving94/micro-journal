@@ -2,41 +2,28 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { getUser, signOut } from '@/lib/supabase/client'
+import { useSupabaseClient, useUser } from '@supabase/auth-helpers-react'
 import { getJournalEntries, createJournalEntry } from '@/lib/services/journal'
 import { JournalEntry } from '@/types/journal'
 
 export default function Dashboard() {
   const router = useRouter()
+  const supabase = useSupabaseClient()
+  const user = useUser()
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [newEntry, setNewEntry] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
-    async function checkSession() {
-      try {
-        const { user, error } = await getUser()
-        
-        if (error || !user) {
-          console.error('Session check error:', error)
-          router.push('/auth/signin')
-          return
-        }
-        
-        setUserId(user.id)
-        await loadEntries(user.id)
-      } catch (err) {
-        console.error('Error in dashboard:', err)
-        setError('Failed to load user session')
-        setLoading(false)
-      }
+    if (!user) {
+      router.push('/auth/signin')
+      return
     }
     
-    checkSession()
-  }, [router])
+    loadEntries(user.id)
+  }, [user, router])
 
   const loadEntries = async (userId: string) => {
     setLoading(true)
@@ -65,8 +52,8 @@ export default function Dashboard() {
       return
     }
     
-    if (!userId) {
-      setError('User ID not found. Please sign in again.')
+    if (!user) {
+      setError('User not found. Please sign in again.')
       router.push('/auth/signin')
       return
     }
@@ -76,7 +63,7 @@ export default function Dashboard() {
     
     try {
       const { data, error } = await createJournalEntry({
-        user_id: userId,
+        user_id: user.id,
         content: newEntry.trim()
       })
       
@@ -98,7 +85,7 @@ export default function Dashboard() {
 
   const handleSignOut = async () => {
     try {
-      const { error } = await signOut()
+      const { error } = await supabase.auth.signOut()
       if (error) {
         console.error('Sign out error:', error)
       }
