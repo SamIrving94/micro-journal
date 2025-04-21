@@ -57,7 +57,8 @@ export async function PUT(request: Request) {
       );
     }
 
-    const { data, error } = await signIn(email, password);
+    // Call signIn without arguments (it now returns a warning and null data)
+    const { data, error } = await signIn();
     
     if (error) {
       const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
@@ -70,8 +71,12 @@ export async function PUT(request: Request) {
       );
     }
 
+    // Since we're using Clerk now, we won't have user data from Supabase
     return NextResponse.json(
-      { message: 'Signed in successfully', user: data?.user || null },
+      { 
+        message: 'Note: Authentication is now handled by Clerk. Please use Clerk authentication endpoints instead.',
+        redirectTo: '/api/clerk/auth'
+      },
       { status: 200 }
     );
   } catch (error) {
@@ -94,7 +99,8 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const { error } = await resetPassword(email);
+    // Call resetPassword without arguments (it now returns a warning and null error)
+    const { error } = await resetPassword();
     
     if (error) {
       const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
@@ -108,7 +114,10 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json(
-      { message: 'Password reset email sent' },
+      { 
+        message: 'Note: Password reset is now handled by Clerk. Please use Clerk authentication endpoints instead.',
+        redirectTo: '/api/clerk/forgot-password'
+      },
       { status: 200 }
     );
   } catch (error) {

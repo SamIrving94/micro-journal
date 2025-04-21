@@ -1,4 +1,5 @@
-import { supabase } from './supabase';
+import { supabase } from './supabase/client';
+import { currentUser } from '@clerk/nextjs/server';
 import { 
   JournalEntry, 
   JournalEntryQuery, 
@@ -13,6 +14,17 @@ interface JournalError {
   name: string;
   message: string;
 }
+
+// Helper function to get current user ID from Clerk
+export const getCurrentUserId = async () => {
+  const user = await currentUser();
+  
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+  
+  return user.id;
+};
 
 /**
  * Get journal entries based on query parameters
@@ -134,4 +146,63 @@ export async function createJournalEntry(
       }
     };
   }
-} 
+}
+
+// Get a specific journal entry
+export const getJournalEntry = async (id: string) => {
+  try {
+    const userId = await getCurrentUserId();
+    
+    const { data, error } = await supabase
+      .from('journal_entries')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+    
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error fetching journal entry:', error);
+    return { data: null, error };
+  }
+};
+
+// Update a journal entry
+export const updateJournalEntry = async (id: string, content: string) => {
+  try {
+    const userId = await getCurrentUserId();
+    
+    const { data, error } = await supabase
+      .from('journal_entries')
+      .update({ content })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select();
+    
+    if (error) throw error;
+    return { data: data?.[0], error: null };
+  } catch (error) {
+    console.error('Error updating journal entry:', error);
+    return { data: null, error };
+  }
+};
+
+// Delete a journal entry
+export const deleteJournalEntry = async (id: string) => {
+  try {
+    const userId = await getCurrentUserId();
+    
+    const { error } = await supabase
+      .from('journal_entries')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+    
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting journal entry:', error);
+    return { error };
+  }
+}; 

@@ -2,42 +2,30 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getUser } from '@/lib/supabase/client';
+import { useUser } from '@clerk/nextjs';
 import { getJournalEntries, createJournalEntry, deleteJournalEntry } from '@/lib/services/journal';
 import { JournalEntry } from '@/types/journal';
 
 export default function JournalPage() {
   const router = useRouter();
+  const { isLoaded, isSignedIn, user } = useUser();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [newEntry, setNewEntry] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    async function checkSession() {
-      try {
-        const { user, error } = await getUser();
-        
-        if (error || !user) {
-          console.error('Session check error:', error);
-          router.push('/auth/signin');
-          return;
-        }
-        
-        setUserId(user.id);
-        await loadEntries(user.id);
-      } catch (err) {
-        console.error('Error in journal page:', err);
-        setError('Failed to load user session');
-        setLoading(false);
-      }
+    if (!isLoaded) return;
+    
+    if (!isSignedIn || !user) {
+      router.push('/auth/signin');
+      return;
     }
     
-    checkSession();
-  }, [router]);
+    loadEntries(user.id);
+  }, [isLoaded, isSignedIn, user, router]);
 
   const loadEntries = async (userId: string) => {
     setLoading(true);
@@ -62,13 +50,7 @@ export default function JournalPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newEntry.trim()) {
-      return;
-    }
-    
-    if (!userId) {
-      setError('User ID not found. Please sign in again.');
-      router.push('/auth/signin');
+    if (!newEntry.trim() || !isSignedIn || !user) {
       return;
     }
     
@@ -77,7 +59,7 @@ export default function JournalPage() {
     
     try {
       const { data, error } = await createJournalEntry({
-        user_id: userId,
+        user_id: user.id,
         content: newEntry.trim()
       });
       
